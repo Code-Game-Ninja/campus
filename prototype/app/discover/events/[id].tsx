@@ -1,52 +1,60 @@
 import { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Linking, Share, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { goBackOrReplace } from '@/lib/navigation';
-import { Avatar, Badge, Body, Button, Card, Field, IconButton, OwnerActions, Screen, Segmented, StateView, TopBar } from '@/components/ui';
+import { Avatar, Badge, Body, Button, Card, IconButton, Screen, Segmented, StateView, TopBar } from '@/components/ui';
 import { usePalette } from '@/theme/usePalette';
-import { apiDelete, apiPatch, apiPost } from '@/lib/api';
+import { apiDelete, apiPost } from '@/lib/api';
 import { apiQueryKey, useApiQuery } from '@/lib/api-hooks';
 import { queryClient } from '@/lib/query';
-import { mapEvent, type ApiEvent, type ApiEventTeam } from '@/lib/events';
+import { mapEvent, type ApiEvent } from '@/lib/events';
 import { useAppStore } from '@/store/useAppStore';
 
-type Tab = 'Details' | 'Team' | 'Gallery';
+type Tab = 'Details' | 'Gallery';
 
 export default function EventDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const p = usePalette();
-  const toast = useToast();
+  const toast = useAppStore((state) => state.showToast);
   const eventQuery = useApiQuery<ApiEvent>(apiQueryKey('event', id), `/events/${id}`, {}, { enabled: Boolean(id) });
-  const teamQuery = useApiQuery<ApiEventTeam[]>(apiQueryKey('event-teams', id), `/events/${id}/teams`, {}, { enabled: Boolean(id) });
-  const meQuery = useApiQuery<{ userId: string }>(apiQueryKey('me'), '/me', {}, { staleTime: 300_000 });
   const event = useMemo(() => eventQuery.data ? mapEvent(eventQuery.data) : null, [eventQuery.data]);
-  const team = teamQuery.data?.[0];
   const [tab, setTab] = useState<Tab>('Details');
-  const [editing, setEditing] = useState(false);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [venue, setVenue] = useState('');
-  const [capacity, setCapacity] = useState('');
-  const [applicationRole, setApplicationRole] = useState<string | null>(null);
-  const [applicationNote, setApplicationNote] = useState('');
-  const owner = Boolean(eventQuery.data && meQuery.data?.userId === eventQuery.data.organizerId);
 
   if (eventQuery.isLoading) return <Screen><StateView icon="hourglass-outline" title="Loading event" detail="Fetching official event details…" /></Screen>;
   if (eventQuery.isError || !event || !eventQuery.data) return <Screen><StateView icon="calendar-outline" title="Event not available" detail={eventQuery.error?.message ?? 'It may have ended or been removed.'} action="Go back" onAction={() => goBackOrReplace('/discover/events')} /></Screen>;
-  const startEdit = () => { setTitle(event.title); setDescription(event.description); setVenue(event.venue); setCapacity(String(event.capacity)); setEditing(true); };
-  const save = async () => { try { await apiPatch(`/events/${event.id}`, { title: title.trim(), description: description.trim(), location: venue.trim(), capacity: Number(capacity) || event.capacity }); await queryClient.invalidateQueries({ queryKey: apiQueryKey('event', id) }); setEditing(false); toast('Event updated.', 'success'); } catch (error) { toast((error as Error).message, 'error'); } };
-  const remove = async () => { try { await apiDelete(`/events/${event.id}`); await queryClient.invalidateQueries({ queryKey: apiQueryKey('events', 'published') }); toast('Event removed.', 'success'); router.replace('/discover/events'); } catch (error) { toast((error as Error).message, 'error'); } };
-  const register = async () => { try { if (event.registered) await apiDelete(`/events/${event.id}/registrations`); else await apiPost(`/events/${event.id}/registrations`, undefined, `registration-${event.id}-${Date.now()}`); await queryClient.invalidateQueries({ queryKey: apiQueryKey('event', id) }); await queryClient.invalidateQueries({ queryKey: apiQueryKey('events', 'published') }); toast(event.registered ? 'Registration cancelled.' : 'You are registered.', 'success'); } catch (error) { toast((error as Error).message, 'error'); } };
-  const apply = async (roleId: string) => { try { await apiPost(`/events/${event.id}/teams/${team?.id}/applications`, { roleId, note: applicationNote.trim() }, `application-${team?.id}-${roleId}-${Date.now()}`); await queryClient.invalidateQueries({ queryKey: apiQueryKey('event-teams', id) }); setApplicationRole(null); setApplicationNote(''); toast('Application sent for organizer review.', 'success'); } catch (error) { toast((error as Error).message, 'error'); } };
-  const respondInvitation = async (invitationId: string, state: 'accepted' | 'declined') => { try { await apiPatch(`/events/${event.id}/teams/${team?.id}/invitations/${invitationId}`, { state }); await queryClient.invalidateQueries({ queryKey: apiQueryKey('event-teams', id) }); toast(state === 'accepted' ? 'Invitation accepted. Event title added.' : 'Invitation declined.', 'success'); } catch (error) { toast((error as Error).message, 'error'); } };
 
-  return <Screen><TopBar title="Event details" left={<IconButton icon="chevron-back" label="Back" onPress={() => goBackOrReplace('/discover/events')} />} right={owner ? <OwnerActions target="event" onEdit={startEdit} onDelete={remove} /> : <IconButton icon="share-outline" label="Share event" onPress={() => toast('Event link copied.', 'info')} />} />{editing ? <Card style={{ gap: 14, marginTop: 8 }}><Text style={{ color: p.ink, fontSize: 19, fontWeight: '900' }}>Edit official event</Text><Field label="Event title" value={title} onChangeText={setTitle} /><Field label="Description" value={description} onChangeText={setDescription} multiline /><Field label="Venue" value={venue} onChangeText={setVenue} /><Field label="Capacity" value={capacity} onChangeText={(value) => setCapacity(value.replace(/\D/g, ''))} keyboardType="numeric" /><View style={{ flexDirection: 'row', gap: 9 }}><View style={{ flex: 1 }}><Button variant="ghost" label="Cancel" onPress={() => setEditing(false)} /></View><View style={{ flex: 1 }}><Button label="Save event" disabled={!title.trim() || !description.trim() || !venue.trim()} onPress={save} /></View></View></Card> : <><View style={{ height: 210, backgroundColor: event.accent, borderRadius: 24, padding: 20, justifyContent: 'space-between' }}><Badge label={event.category} /><Ionicons name="sparkles" size={38} color="#344054" /><Text style={{ color: '#101828', fontSize: 29, lineHeight: 34, fontWeight: '900' }}>{event.title}</Text></View><View style={{ marginTop: 16 }}><Segmented values={team ? ['Details', 'Team', 'Gallery'] as const : ['Details', 'Gallery'] as const} value={tab} onChange={setTab} /></View>{tab === 'Details' ? <><Card style={{ marginTop: 16 }}><View style={{ flexDirection: 'row', gap: 11, alignItems: 'center' }}><Avatar initials={event.title.slice(0, 2).toUpperCase()} accent={event.accent} /><View><Text style={{ color: p.ink, fontWeight: '800' }}>{owner ? 'You organize this event' : 'Verified campus organizer'}</Text><Badge label={owner ? 'Organizer' : 'Official event'} tone="success" icon="checkmark-circle" /></View></View><Body style={{ marginTop: 14 }}>{event.description}</Body></Card><Card style={{ marginTop: 12, gap: 13 }}>{[["calendar-outline", `${event.date} · ${event.time} ${event.timezone}`], ["location-outline", event.venue], ["people-outline", `${event.attendees} attending · ${event.capacity || 'No'} capacity`], ["hourglass-outline", `Register by ${event.deadline}`]].map(([icon, value]) => <View key={value} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={20} color={p.brand} /><Body>{value}</Body></View>)}</Card>{owner ? <Button variant="secondary" label="Manage event team" icon="people" onPress={() => router.push('/organizer/team')} /> : <Button label={event.registered ? 'Cancel registration' : 'Register for event'} variant={event.registered ? 'secondary' : 'primary'} onPress={register} />}</> : null}{tab === 'Team' && team ? <TeamPanel eventId={event.id} team={team} owner={owner} applicationRole={applicationRole} setApplicationRole={setApplicationRole} applicationNote={applicationNote} setApplicationNote={setApplicationNote} apply={apply} respondInvitation={respondInvitation} /> : null}{tab === 'Gallery' ? <View style={{ marginTop: 16 }}><StateView icon="images-outline" title={event.gallery.length ? 'Event media' : 'No event media'} detail={event.gallery.length ? `${event.gallery.length} approved media item(s).` : 'Organizer has not added approved photos yet.'} /></View> : null}</>}</Screen>;
+  const registrationLabel = event.registered ? 'Cancel registration' : eventQuery.data.userRegistrationStatus === 'waitlisted' ? 'Leave waitlist' : event.capacity > 0 && event.attendees >= event.capacity ? 'Join waitlist' : 'Register for event';
+  const register = async () => {
+    try {
+      const active = event.registered || eventQuery.data.userRegistrationStatus === 'waitlisted';
+      if (active) await apiDelete(`/events/${event.id}/registrations`);
+      else await apiPost(`/events/${event.id}/registrations`, undefined, `registration-${event.id}-${Date.now()}`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: apiQueryKey('event', id) }),
+        queryClient.invalidateQueries({ queryKey: apiQueryKey('events', 'published') }),
+      ]);
+      toast({ type: 'success', message: active ? 'Event registration removed.' : event.capacity > 0 && event.attendees >= event.capacity ? 'You joined the waitlist.' : 'You are registered.' });
+    } catch (error) {
+      toast({ type: 'error', message: (error as Error).message });
+    }
+  };
+  const share = async () => {
+    await Share.share({ title: event.title, message: `${event.title}\n${event.date} · ${event.time}\n${event.venue}` });
+  };
+  const openMap = async () => {
+    await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.venue)}`);
+  };
+  const toggleReminder = async () => {
+    try {
+      if (eventQuery.data.reminderEnabled) await apiDelete(`/events/${event.id}/reminders`);
+      else await apiPost(`/events/${event.id}/reminders`);
+      await queryClient.invalidateQueries({ queryKey: apiQueryKey('event', id) });
+      toast({ type: 'success', message: eventQuery.data.reminderEnabled ? 'Event reminder disabled.' : 'Event reminder enabled.' });
+    } catch (error) {
+      toast({ type: 'error', message: (error as Error).message });
+    }
+  };
+
+  return <Screen><TopBar title="Event details" left={<IconButton icon="chevron-back" label="Back" onPress={() => goBackOrReplace('/discover/events')} />} right={<IconButton icon="share-outline" label="Share event" onPress={() => void share()} />} /><View style={{ height: 210, backgroundColor: event.accent, borderRadius: 24, padding: 20, justifyContent: 'space-between' }}><Badge label={event.category} /><Ionicons name="sparkles" size={38} color="#344054" /><Text style={{ color: '#101828', fontSize: 29, lineHeight: 34, fontWeight: '900' }}>{event.title}</Text></View><View style={{ marginTop: 16 }}><Segmented values={['Details', 'Gallery'] as const} value={tab} onChange={setTab} /></View>{tab === 'Details' ? <><Card style={{ marginTop: 16 }}><View style={{ flexDirection: 'row', gap: 11, alignItems: 'center' }}><Avatar initials={event.title.slice(0, 2).toUpperCase()} accent={event.accent} /><View><Text style={{ color: p.ink, fontWeight: '800' }}>{event.organizer}</Text><Badge label="Official campus event" tone="success" icon="checkmark-circle" /></View></View><Body style={{ marginTop: 14 }}>{event.description}</Body></Card><Card style={{ marginTop: 12, gap: 13 }}>{[["calendar-outline", `${event.date} · ${event.time} ${event.timezone}`], ["location-outline", event.venue], ["people-outline", `${event.attendees} attending · ${event.capacity || 'No'} capacity`], ["hourglass-outline", `Register by ${event.deadline}`]].map(([icon, value]) => <View key={value} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={20} color={p.brand} /><Body>{value}</Body></View>)}</Card><View style={{ flexDirection: 'row', gap: 9, marginTop: 12 }}><View style={{ flex: 1 }}><Button variant="secondary" label="Directions" icon="navigate-outline" onPress={() => void openMap()} /></View><View style={{ flex: 1 }}><Button variant="secondary" label={eventQuery.data.reminderEnabled ? 'Reminder on' : 'Remind me'} icon={eventQuery.data.reminderEnabled ? 'notifications' : 'notifications-outline'} onPress={() => void toggleReminder()} /></View></View><Button label={registrationLabel} variant={event.registered || eventQuery.data.userRegistrationStatus === 'waitlisted' ? 'secondary' : 'primary'} onPress={() => void register()} /></> : null}{tab === 'Gallery' ? <View style={{ marginTop: 16 }}><StateView icon="images-outline" title={event.gallery.length ? 'Event media' : 'No event media'} detail={event.gallery.length ? `${event.gallery.length} approved media item(s).` : 'Approved event photos will appear here.'} /></View> : null}</Screen>;
 }
-
-function TeamPanel({ team, owner, applicationRole, setApplicationRole, applicationNote, setApplicationNote, apply, respondInvitation }: { eventId: string; team: ApiEventTeam; owner: boolean; applicationRole: string | null; setApplicationRole: (value: string | null) => void; applicationNote: string; setApplicationNote: (value: string) => void; apply: (roleId: string) => Promise<void>; respondInvitation: (id: string, state: 'accepted' | 'declined') => Promise<void> }) {
-  const p = usePalette();
-  return <View style={{ marginTop: 16 }}><Card><Text style={{ color: p.ink, fontSize: 18, fontWeight: '900' }}>{team.name}</Text><Body muted style={{ marginTop: 7 }}>{team.purpose}</Body>{owner ? <Button compact label="Review applications" icon="people" onPress={() => router.push('/organizer/team')} /> : null}</Card>{!owner && team.invitations.filter((invitation) => invitation.state === 'pending').map((invitation) => <Card key={invitation.id} style={{ marginTop: 10 }}><Badge label="Team invitation" tone="warning" /><Body style={{ marginTop: 8 }}>You were invited as {team.roles.find((role) => role.id === invitation.roleId)?.title ?? 'team member'}.</Body><View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}><View style={{ flex: 1 }}><Button compact variant="ghost" label="Decline" onPress={() => respondInvitation(invitation.id, 'declined')} /></View><View style={{ flex: 1 }}><Button compact label="Accept" onPress={() => respondInvitation(invitation.id, 'accepted')} /></View></View></Card>)}<Text style={{ color: p.ink, fontSize: 18, fontWeight: '900', marginTop: 20, marginBottom: 10 }}>Event team</Text>{team.members.filter((member) => member.state === 'active').map((member) => <Card key={member.id} style={{ marginBottom: 9 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Avatar initials={member.displayName.slice(0, 2).toUpperCase()} accent="#E9E6FF" /><View style={{ flex: 1 }}><Text style={{ color: p.ink, fontWeight: '800' }}>{member.displayName}</Text><Text style={{ color: p.brand, fontSize: 12, fontWeight: '800' }}>{member.title}</Text></View><Badge label="Team" tone="brand" /></View></Card>)}{!owner ? <>{team.roles.map((role) => { const application = team.applications.find((item) => item.roleId === role.id); const full = role.filled >= role.openings; return <Card key={role.id} style={{ marginBottom: 10 }}><Text style={{ color: p.ink, fontWeight: '900' }}>{role.title}</Text><Body muted style={{ marginTop: 4 }}>{role.description}</Body>{application ? <Badge label={`Application ${application.state}`} tone={application.state === 'accepted' ? 'success' : 'warning'} /> : full ? <Badge label="Role filled" tone="success" /> : applicationRole === role.id ? <><Field label="Why are you a good fit?" value={applicationNote} onChangeText={setApplicationNote} multiline /><Button compact disabled={!applicationNote.trim()} label="Send application" onPress={() => apply(role.id)} /></> : <Button compact label="Apply for role" onPress={() => setApplicationRole(role.id)} />}</Card>; })}</> : null}</View>;
-}
-
-function useToast() { const show = useAppStore((s) => s.showToast); return (message: string, type: 'success' | 'error' | 'info') => show({ type, message }); }

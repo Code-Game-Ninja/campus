@@ -6,7 +6,7 @@ const me = {
   campusId: 'c_1',
   campusName: 'State University',
   created: false,
-  roles: [{ roleName: 'campus_admin' }],
+  roles: [{ roleName: 'student' }],
 };
 
 let profile = {
@@ -58,29 +58,20 @@ const comments: Record<string, any[]> = {
 
 let events = [
   {
-    id: 'e_1', campusId: me.campusId, organizerId: me.userId, title: 'Tech Career Fair', description: 'Meet recruiters, alumni and startup founders.',
+    id: 'e_1', campusId: me.campusId, organizerId: 'org_careers', organizerName: 'Career Services', title: 'Tech Career Fair', description: 'Meet recruiters, alumni and startup founders.',
     location: 'Student Union', bannerUrl: null, category: 'Career', timezone: 'Asia/Kolkata', onlineUrl: null,
     registrationDeadline: '2026-10-10T18:00:00.000Z', contact: 'careers@example.edu', accessibilityNotes: null, terms: null, photoUrls: [],
     startTime: '2026-10-15T04:30:00.000Z', endTime: '2026-10-15T10:30:00.000Z', capacity: 500, registeredCount: 342,
-    status: 'published', createdAt: now(), updatedAt: now(), userRegistrationStatus: null,
+    status: 'published', createdAt: now(), updatedAt: now(), userRegistrationStatus: null, reminderEnabled: false,
   },
   {
-    id: 'e_2', campusId: me.campusId, organizerId: me.userId, title: 'Hackathon 2026', description: 'A 48-hour coding marathon with mentors and demo day.',
+    id: 'e_2', campusId: me.campusId, organizerId: 'org_innovation', organizerName: 'Innovation Center', title: 'Hackathon 2026', description: 'A 48-hour coding marathon with mentors and demo day.',
     location: 'Innovation Center', bannerUrl: null, category: 'Technology', timezone: 'Asia/Kolkata', onlineUrl: null,
     registrationDeadline: '2026-10-25T18:00:00.000Z', contact: 'hack@example.edu', accessibilityNotes: null, terms: null, photoUrls: [],
     startTime: '2026-11-01T12:30:00.000Z', endTime: '2026-11-03T12:30:00.000Z', capacity: 200, registeredCount: 150,
-    status: 'published', createdAt: now(), updatedAt: now(), userRegistrationStatus: 'registered',
+    status: 'published', createdAt: now(), updatedAt: now(), userRegistrationStatus: 'registered', reminderEnabled: true,
   },
 ];
-
-let eventTeams: any[] = [{
-  id: 'et_1', eventId: 'e_2', organizerId: me.userId, organizerName: profile.displayName, name: 'Hackathon Core Team', purpose: 'Run a smooth, welcoming hackathon.', recruiting: true,
-  applicationDeadline: '2026-10-20T18:00:00.000Z', accent: '#E9E6FF',
-  roles: [{ id: 'er_1', title: 'Frontend Lead', openings: 2, filled: 1, skills: ['React', 'React Native'], description: 'Build the participant experience.' }],
-  members: [{ id: 'em_1', userId: me.userId, displayName: profile.displayName, title: 'Organizer', state: 'active' }],
-  applications: [{ id: 'ea_1', roleId: 'er_1', applicantId: 'u_456', applicantName: 'Jane Doe', note: 'I can help with the dashboard.', state: 'pending', createdAt: now() }],
-  invitations: [],
-}];
 
 let resources: any[] = [{
   id: 'rs_1', type: 'notes', title: 'Intro to Algorithms Study Guide', description: 'Sorting, graphs and dynamic programming revision notes.', subjectId: 'CS301', uploaderId: me.userId,
@@ -113,8 +104,6 @@ let notifications = [
   { id: 'n_2', campusId: me.campusId, recipientId: me.userId, eventType: 'event_reminder', title: 'Hackathon registration confirmed', body: 'You are registered for Hackathon 2026.', read: true, referenceType: 'event', referenceId: 'e_2', createdAt: now() },
 ];
 let notificationPreferences = ['post_reaction', 'comment', 'event_reminder', 'club_update', 'chat_message', 'security_alert'].map((eventType, index) => ({ id: `np_${index}`, campusId: me.campusId, userId: me.userId, eventType, inApp: true, push: eventType !== 'post_reaction', emailDigest: eventType === 'security_alert', updatedAt: now() }));
-const meetings: Record<string, any[]> = { et_1: [{ id: 'meet_1', title: 'Volunteer kickoff', agenda: 'Roles, schedule and participant support.', startsAt: '2026-08-10T10:30:00.000Z', endsAt: '2026-08-10T11:30:00.000Z', location: 'Innovation Center 204', onlineUrl: null, status: 'scheduled' }] };
-
 const opportunities = [{ id: 'opp_1', scope: 'global', title: 'Open Source Campus Fellowship', provider: 'CampusSphere Labs', category: 'Technology', deadline: '2026-12-01T18:00:00.000Z', sourceUrl: 'https://example.com/fellowship', eligibility: 'Open to enrolled students interested in open-source software.', state: 'verified', version: 1, createdAt: now() }];
 const universities = [{ id: 'uni_1', name: 'State University', country: 'India', countryCode: 'IN', domain: 'state.example.edu', stateProvince: 'Delhi' }, { id: 'uni_2', name: 'National Institute of Technology', country: 'India', countryCode: 'IN', domain: 'nit.example.edu', stateProvince: 'Karnataka' }];
 
@@ -141,10 +130,7 @@ export function mockGet(path: string, query: Record<string, string | number | un
   if (/^posts\/[^/]+$/.test(path)) return posts.find((item) => item.id === path.split('/')[1]) ?? null;
   if (/^posts\/[^/]+\/comments$/.test(path)) return { items: comments[path.split('/')[1]] ?? [], nextCursor: null };
   if (path === 'events') return events;
-  if (path === 'events/event-teams/mine' || path === 'events/teams') return eventTeams;
   if (/^events\/[^/]+$/.test(path)) return events.find((item) => item.id === path.split('/')[1]) ?? null;
-  if (/^events\/[^/]+\/teams$/.test(path)) return eventTeams.filter((team) => team.eventId === path.split('/')[1]);
-  if (/^events\/[^/]+\/teams\/[^/]+\/meetings$/.test(path)) return meetings[path.split('/')[3]] ?? [];
   if (path === 'resources') return { items: resources, nextCursor: null };
   if (/^resources\/[^/]+\/download$/.test(path)) return { downloadUrl: 'https://example.com/mock-study-guide.pdf', expiresAt: new Date(Date.now() + 3600_000).toISOString() };
   if (path === 'listings' || path === 'marketplace') return { items: listings.filter((item) => !query.type || item.type === query.type), nextCursor: null };
@@ -184,17 +170,8 @@ export function mockRequest(path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DE
   if (/^posts\/[^/]+\/comments$/.test(path) && method === 'POST') { const postId = path.split('/')[1]; const comment = { id: id('comment'), postId, parentId: null, author: { userId: me.userId, displayName: profile.displayName, avatarUrl: null }, body: body.body, createdAt: now() }; comments[postId] = [comment, ...(comments[postId] ?? [])]; const post = posts.find((item) => item.id === postId); if (post) post.commentCount += 1; return comment; }
   if (/^posts\/[^/]+$/.test(path) && method === 'PATCH') { const post = posts.find((item) => item.id === path.split('/')[1]); if (post) Object.assign(post, body, { editedAt: now(), version: post.version + 1 }); return post; }
   if (/^posts\/[^/]+$/.test(path) && method === 'DELETE') { posts = posts.filter((item) => item.id !== path.split('/')[1]); return undefined; }
-  if (path === 'events' && method === 'POST') { const event = { ...events[0], ...body, id: id('event'), campusId: me.campusId, organizerId: me.userId, registeredCount: 0, status: body.status ?? 'published', createdAt: now(), updatedAt: now(), photoUrls: body.photoUrls ?? [], userRegistrationStatus: null }; events = [event, ...events]; return event; }
-  if (/^events\/[^/]+$/.test(path) && method === 'PATCH') { const event = events.find((item) => item.id === path.split('/')[1]); if (event) Object.assign(event, body, { updatedAt: now() }); return event; }
-  if (/^events\/[^/]+$/.test(path) && method === 'DELETE') { events = events.filter((item) => item.id !== path.split('/')[1]); return undefined; }
-  if (/^events\/[^/]+\/registrations$/.test(path)) { const event = events.find((item) => item.id === path.split('/')[1]); if (event) { const added = method === 'POST'; event.userRegistrationStatus = added ? 'registered' : null; event.registeredCount += added ? 1 : -1; } return { registered: method === 'POST' }; }
-  if (/^events\/[^/]+\/teams$/.test(path) && method === 'POST') { const team = { ...eventTeams[0], ...body, id: id('event_team'), eventId: path.split('/')[1], organizerId: me.userId, organizerName: profile.displayName, roles: (body.roles ?? []).map((role: any) => ({ id: id('role'), filled: 0, ...role })), members: [], applications: [], invitations: [] }; eventTeams = [team, ...eventTeams]; return team; }
-  if (/^events\/[^/]+\/teams\/[^/]+$/.test(path) && method === 'PATCH') { const team = eventTeams.find((item) => item.id === path.split('/')[3]); if (team) Object.assign(team, body); return team; }
-  if (/^events\/[^/]+\/teams\/[^/]+\/meetings$/.test(path) && method === 'POST') { const teamId = path.split('/')[3]; const meeting = { id: id('meeting'), ...body, status: 'scheduled' }; meetings[teamId] = [meeting, ...(meetings[teamId] ?? [])]; return meeting; }
-  if (/^events\/[^/]+\/teams\/[^/]+\/applications$/.test(path) && method === 'POST') { const team = eventTeams.find((item) => item.id === path.split('/')[3]); const application = { id: id('event_application'), roleId: body.roleId, applicantId: me.userId, applicantName: profile.displayName, note: body.note ?? '', state: 'pending', createdAt: now() }; if (team) team.applications = [application, ...team.applications]; return application; }
-  if (/^events\/[^/]+\/teams\/[^/]+\/applications\/[^/]+$/.test(path) && method === 'PATCH') { const team = eventTeams.find((item) => item.id === path.split('/')[3]); const application = team?.applications.find((item: any) => item.id === path.split('/')[5]); if (application) { application.state = body.state; if (body.state === 'accepted') { const role = team?.roles.find((item: any) => item.id === application.roleId); if (role) role.filled += 1; team?.members.push({ id: id('event_member'), userId: application.applicantId, displayName: application.applicantName, title: role?.title ?? 'Team member', state: 'active' }); } } return application; }
-  if (/^events\/[^/]+\/teams\/[^/]+\/invitations$/.test(path) && method === 'POST') { const team = eventTeams.find((item) => item.id === path.split('/')[3]); const invitation = { id: id('event_invitation'), roleId: body.roleId, inviteeId: body.inviteeId, inviteeName: findProfile(body.inviteeId).displayName, invitedBy: me.userId, state: 'pending', createdAt: now() }; if (team) team.invitations = [invitation, ...team.invitations]; return invitation; }
-  if (/^events\/[^/]+\/teams\/[^/]+\/invitations\/[^/]+$/.test(path) && method === 'PATCH') { const team = eventTeams.find((item) => item.id === path.split('/')[3]); const invitation = team?.invitations.find((item: any) => item.id === path.split('/')[5]); if (invitation) invitation.state = body.state; return invitation; }
+  if (/^events\/[^/]+\/registrations$/.test(path)) { const event = events.find((item) => item.id === path.split('/')[1]); if (event) { const added = method === 'POST'; const wasRegistered = event.userRegistrationStatus === 'registered'; event.userRegistrationStatus = added ? (event.capacity && event.registeredCount >= event.capacity ? 'waitlisted' : 'registered') : null; if (added && event.userRegistrationStatus === 'registered') event.registeredCount += 1; if (!added && wasRegistered && event.registeredCount > 0) event.registeredCount -= 1; } return { registered: method === 'POST' }; }
+  if (/^events\/[^/]+\/reminders$/.test(path)) { const event = events.find((item) => item.id === path.split('/')[1]); if (event) event.reminderEnabled = method === 'POST'; return { enabled: method === 'POST' }; }
   if (path === 'listings' && method === 'POST') { const listing = { id: id('listing'), category: null, priceMinor: null, currency: null, condition: null, locationText: null, status: body.type === 'marketplace' ? 'available' : 'open', version: 1, ownerId: me.userId, isOwner: true, createdAt: now(), ...body }; listings = [listing, ...listings]; return listing; }
   if (/^listings\/[^/]+$/.test(path) && method === 'PATCH') { const listing = listings.find((item) => item.id === path.split('/')[1]); if (listing) Object.assign(listing, body, { version: listing.version + 1 }); return listing; }
   if (/^listings\/[^/]+\/contact-requests$/.test(path) && method === 'POST') { const listingId = path.split('/')[1]; const request = { id: id('contact'), listingId, requesterId: me.userId, state: 'pending', message: body.message ?? null, createdAt: now() }; contactRequests[listingId] = [request, ...(contactRequests[listingId] ?? [])]; return request; }

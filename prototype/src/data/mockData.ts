@@ -1,4 +1,4 @@
-import type { User, Post, CampusEvent, EventTeam, Resource, Listing, Club, Person, ActivityItem, Connection } from '../types';
+import type { User, Post, CampusEvent, Resource, Listing, Club, Person, ActivityItem, Connection } from '../types';
 
 export const MOCK_ME = { userId: 'u_123', campusId: 'c_1', created: false };
 
@@ -15,8 +15,6 @@ export const MOCK_USER: User = {
   interests: ['Coding', 'Design', 'AI'],
   universityId: 'u_1',
   universityCountry: 'US',
-  accountRole: 'member',
-  roleStatus: 'approved'
 };
 
 export const MOCK_POSTS: Post[] = [
@@ -87,27 +85,6 @@ export const MOCK_EVENTS: CampusEvent[] = [
     accent: '#10b981',
     registered: true,
     gallery: []
-  }
-];
-
-export const MOCK_TEAMS: EventTeam[] = [
-  {
-    id: 't_1',
-    eventId: 'e_2',
-    name: 'Byte Me',
-    purpose: 'Build a revolutionary study app',
-    organizerId: 'u_123',
-    organizerName: 'Alex Developer',
-    recruiting: true,
-    applicationDeadline: 'Oct 30, 2026',
-    roles: [
-      { id: 'r_1', title: 'Frontend Dev', openings: 2, filled: 1, skills: ['React', 'React Native'], description: 'Build the UI' }
-    ],
-    members: [
-      { id: 'm_1', personId: 'u_123', name: 'Alex Developer', initials: 'AD', title: 'Fullstack', status: 'lead' }
-    ],
-    applications: [],
-    accent: '#f43f5e'
   }
 ];
 

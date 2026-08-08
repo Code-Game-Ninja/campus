@@ -2,11 +2,9 @@ import { router, type Href } from 'expo-router';
 
 const UNDER_CONSTRUCTION_ROUTES: ReadonlyArray<{ prefix: string; feature: string; exact?: boolean }> = [
   { prefix: '/assistant', feature: 'Campus Assistant' },
-  { prefix: '/discover/events', feature: 'Events' },
   { prefix: '/discover/clubs', feature: 'Clubs' },
   { prefix: '/discover/listings', feature: 'Marketplace and Lost & Found' },
   { prefix: '/discover/opportunities', feature: 'Opportunities' },
-  { prefix: '/organizer', feature: 'Organizer tools' },
 ];
 
 export function getUnderConstructionFeature(pathname: string): string | null {

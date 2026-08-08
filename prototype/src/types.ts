@@ -14,19 +14,10 @@ export type User = {
   universityCountry?: string;
   /** Email domain of the institution. An affiliation HINT only, never proof. */
   universityDomain?: string;
-  accountRole?: 'member' | 'organizer' | 'event-manager';
-  roleStatus?: 'none' | 'pending' | 'approved' | 'rejected';
-  roleReason?: string;
-  roleProof?: string;
-  roleContact?: string;
-  adminMessage?: string;
-  adminResponse?: string;
-  organizationMemberships?: string[];
   contentWarnings?: number;
   lastContentWarning?: string;
   avatarOptionId?: string;
   avatarSeed?: string;
-  eventTitles?: { eventId: string; eventName: string; title: string }[];
 };
 
 export type Post = {
@@ -43,29 +34,6 @@ export type CampusEvent = {
   id: string; title: string; category: string; date: string; time: string; timezone: string;
   venue: string; organizer: string; description: string; capacity: number; attendees: number;
   deadline: string; accent: string; registered?: boolean; gallery: string[]; organizerId?: string; teamId?: string;
-};
-
-export type TeamMeet = {
-  id: string; title: string; description: string; date: string; time: string; venue: string;
-  teamName: string; organizerId: string; attendees: number; accent: string;
-};
-
-export type EventTeamRole = {
-  id: string; title: string; openings: number; filled: number; skills: string[]; description: string;
-};
-
-export type EventTeamMember = {
-  id: string; personId?: string; name: string; initials: string; title: string; status: 'lead' | 'member';
-};
-
-export type EventTeamApplication = {
-  id: string; personId: string; roleId: string; note: string; status: 'pending' | 'shortlisted' | 'accepted' | 'declined'; appliedAt: string;
-};
-
-export type EventTeam = {
-  id: string; eventId?: string; name: string; purpose: string; organizerId: string; organizerName: string;
-  recruiting: boolean; applicationDeadline: string; roles: EventTeamRole[]; members: EventTeamMember[];
-  applications: EventTeamApplication[]; accent: string;
 };
 
 export type Resource = {

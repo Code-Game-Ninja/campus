@@ -3,10 +3,8 @@ import { ActivityIndicator, Animated, Easing, Modal, Pressable, StyleSheet, Text
 import { Redirect, Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { apiQueryKey, useApiQuery } from '@/lib/api-hooks';
 import { useAppStore } from '@/store/useAppStore';
 import { usePalette } from '@/theme/usePalette';
-import { openUnderConstruction } from '@/lib/navigation';
 
 const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
   'home/index': 'home',
@@ -32,11 +30,9 @@ const baseActions: QuickAction[] = [
 
 function CreateQuickMenu({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const p = usePalette();
-  const me = useApiQuery<{ roles: Array<{ roleName: string }> }>(apiQueryKey('me'), '/me', {}, { staleTime: 5 * 60_000 });
-  const organizer = Boolean(me.data?.roles.some((role) => role.roleName === 'club_admin' || role.roleName === 'campus_admin' || role.roleName === 'platform_admin'));
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const bubbleAnimations = useRef(Array.from({ length: 6 }, () => new Animated.Value(0))).current;
-  const actions = organizer ? [...baseActions, { title: 'Event', detail: 'Under construction · stay tuned', icon: 'calendar' as const, color: '#FFF1C7', route: '__event__' }] : baseActions;
+  const actions = baseActions;
 
   useEffect(() => {
     if (!visible) return;
@@ -51,7 +47,7 @@ function CreateQuickMenu({ visible, onClose }: { visible: boolean; onClose: () =
 
   const go = (route: string) => {
     onClose();
-    setTimeout(() => route === '__event__' ? openUnderConstruction('Organizer tools') : router.push(route as never), 90);
+    setTimeout(() => router.push(route as never), 90);
   };
 
   return <Modal transparent visible={visible} animationType="none" onRequestClose={onClose} statusBarTranslucent>
