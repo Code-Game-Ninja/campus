@@ -1,0 +1,148 @@
+import { useEffect, useState } from 'react';
+import { Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
+import { goBackOrReplace } from '@/lib/navigation';
+import { Badge, Body, Button, Card, Chip, IconButton, Screen, SectionHeader, StateView, TopBar } from '@/components/ui';
+import { apiPatch, apiPost } from '@/lib/api';
+import { apiQueryKey, useApiQuery } from '@/lib/api-hooks';
+import type { ChatRoom } from '@/lib/chat';
+import type { ConnectionView } from '@/lib/discovery';
+import { queryClient } from '@/lib/query';
+import { useAppStore } from '@/store/useAppStore';
+import { usePalette } from '@/theme/usePalette';
+
+type Tab = 'Chats' | 'Connections';
+
+export default function ChatList() {
+  const p = usePalette();
+  const toast = useAppStore((s) => s.showToast);
+  const { tab: requestedTab } = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState<Tab>(requestedTab === 'Connections' ? 'Connections' : 'Chats');
+  const [busy, setBusy] = useState<string | null>(null);
+  const me = useApiQuery<{ userId: string }>(apiQueryKey('me'), '/me');
+  const rooms = useApiQuery<ChatRoom[]>(apiQueryKey('chat-rooms'), '/chat/rooms');
+  const connections = useApiQuery<ConnectionView[]>(apiQueryKey('connections'), '/connections');
+
+  useEffect(() => {
+    if (requestedTab === 'Connections') setTab('Connections');
+  }, [requestedTab]);
+
+  const act = async (connection: ConnectionView, action: 'accept' | 'decline' | 'cancel' | 'end') => {
+    setBusy(connection.id);
+    try {
+      await apiPatch(`/connections/${connection.id}`, { action });
+      await queryClient.invalidateQueries({ queryKey: apiQueryKey('connections') });
+      const result = action === 'accept' ? 'accepted' : action === 'decline' ? 'declined' : action === 'cancel' ? 'cancelled' : 'ended';
+      toast({ type: 'success', message: `Connection ${result}.` });
+    } catch (error) {
+      toast({ type: 'error', message: (error as Error).message });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openChat = async (connection: ConnectionView) => {
+    setBusy(connection.id);
+    try {
+      // The API is idempotent for a DM pair, so this is safe across multiple
+      // devices and simultaneous taps without relying on stale client caches.
+      const room = await apiPost<ChatRoom>('/chat/rooms', {
+        type: 'dm',
+        memberIds: [connection.otherUserId],
+      });
+      queryClient.setQueryData<ChatRoom[]>(apiQueryKey('chat-rooms'), (current) => {
+        if (!current) return [room];
+        return current.some((item) => item.id === room.id) ? current : [room, ...current];
+      });
+      router.push(`/chat/${room.id}`);
+    } catch (error) {
+      toast({ type: 'error', message: (error as Error).message });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const loading = me.isLoading || rooms.isLoading || connections.isLoading;
+  const error = me.error ?? rooms.error ?? connections.error;
+  const teamRooms = rooms.data?.filter((room) => room.type !== 'dm') ?? [];
+  const directRooms = rooms.data?.filter((room) => room.type === 'dm') ?? [];
+
+  const renderRoom = (room: ChatRoom) => {
+    const counterpart = room.type === 'dm' ? room.members.find((member) => member.userId !== me.data?.userId) : undefined;
+    const title = room.name ?? counterpart?.displayName?.trim() ?? (room.type === 'dm' ? 'Campus member' : 'Team chat');
+    return (
+      <Card key={room.id} onPress={() => router.push(`/chat/${room.id}`)} style={{ marginBottom: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11 }}>
+          <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: room.type === 'dm' ? '#E9E6FF' : '#DDF7EA', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name={room.type === 'dm' ? 'person' : 'people'} size={22} color="#344054" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: p.ink, fontSize: 16, fontWeight: '800' }}>{title}</Text>
+            <Text style={{ color: p.muted, fontSize: 12, marginTop: 4 }}>{room.members.length} members · {room.type === 'dm' ? 'direct message' : 'shared team chat'}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={19} color={p.muted} />
+        </View>
+      </Card>
+    );
+  };
+
+  return (
+    <Screen>
+      <TopBar title="Messages" subtitle="Encrypted at rest, private but reportable" left={<IconButton icon="chevron-back" label="Back" onPress={() => goBackOrReplace('/(tabs)/home')} />} />
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+        <Chip label="Chats" selected={tab === 'Chats'} onPress={() => setTab('Chats')} />
+        <Chip label="Connections" selected={tab === 'Connections'} onPress={() => setTab('Connections')} />
+      </View>
+      {error ? (
+        <StateView icon="cloud-offline" tone="danger" title="Messaging unavailable" detail={error.message} action="Retry" onAction={() => { me.refetch(); rooms.refetch(); connections.refetch(); }} />
+      ) : loading ? (
+        <StateView icon="hourglass-outline" title="Loading messages" detail="Fetching authorized rooms and connections…" />
+      ) : tab === 'Chats' ? (
+        <>
+          <SectionHeader title={`Team chats (${teamRooms.length})`} />
+          {teamRooms.length ? teamRooms.map(renderRoom) : <Body muted>No shared team chats yet.</Body>}
+          <SectionHeader title={`Direct messages (${directRooms.length})`} />
+          {directRooms.length ? directRooms.map(renderRoom) : <Body muted>No direct messages yet.</Body>}
+          {!rooms.data?.length ? <StateView icon="chatbubbles-outline" title="No chats" detail="Join a team or accept a connection to start a conversation." action="Find collaborators" onAction={() => router.push('/discover/tribe')} /> : null}
+        </>
+      ) : (
+        <>
+          <SectionHeader title="Chat requests and connections" />
+          {connections.data?.length ? connections.data.map((connection) => (
+            <Card key={connection.id} style={{ marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFE6D7', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="person" size={21} color="#344054" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: p.ink, fontSize: 15, fontWeight: '800' }}>{connection.otherDisplayName?.trim() || 'Campus member'}</Text>
+                  <Body muted>{connection.origin.replace(/_/g, ' ')} · {connection.isCrossCampus ? 'cross-campus' : 'same campus'}</Body>
+                </View>
+                <Badge
+                  label={connection.state === 'pending' ? (connection.direction === 'incoming' ? 'needs review' : 'request sent') : connection.state}
+                  tone={connection.state === 'accepted' ? 'success' : connection.state === 'pending' ? 'warning' : 'neutral'}
+                />
+              </View>
+              {connection.state === 'pending' && connection.direction === 'incoming' ? (
+                <View style={{ flexDirection: 'row', gap: 9, marginTop: 14 }}>
+                  <View style={{ flex: 1 }}><Button compact variant="ghost" label="Decline" disabled={busy === connection.id} onPress={() => act(connection, 'decline')} /></View>
+                  <View style={{ flex: 1 }}><Button compact label="Accept" loading={busy === connection.id} onPress={() => act(connection, 'accept')} /></View>
+                </View>
+              ) : connection.state === 'pending' ? (
+                <View style={{ marginTop: 14 }}>
+                  <Button compact variant="ghost" label="Cancel request" loading={busy === connection.id} onPress={() => act(connection, 'cancel')} />
+                </View>
+              ) : connection.state === 'accepted' ? (
+                <View style={{ flexDirection: 'row', gap: 9, marginTop: 14 }}>
+                  <View style={{ flex: 1 }}><Button compact variant="ghost" label="End connection" disabled={busy === connection.id} onPress={() => act(connection, 'end')} /></View>
+                  <View style={{ flex: 1 }}><Button compact label="Message" loading={busy === connection.id} onPress={() => openChat(connection)} /></View>
+                </View>
+              ) : null}
+            </Card>
+          )) : <StateView icon="mail-open-outline" title="No chat requests" detail="Open a member profile to request chat access. Following someone does not unlock messages." />}
+        </>
+      )}
+    </Screen>
+  );
+}

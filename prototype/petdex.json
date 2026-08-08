@@ -1,0 +1,9 @@
+{
+  "installed": [
+    { "id": "broke-lowpoly-cat", "displayName": "Broke Lowpoly Cat", "source": "assets/broke-lowpoly-cat.zip" },
+    { "id": "meowbyte", "displayName": "Meowbyte", "source": "assets/meowbyte.zip" },
+    { "id": "yier", "displayName": "Yier", "source": "assets/yier.zip" }
+  ],
+  "disabled": ["ghost", "noir-webling", "luffy-2", "nezukocoder"],
+  "removed": ["shinchan", "doraemon"]
+}

@@ -1,0 +1,10 @@
+module.exports = ({ config }) => {
+  const googleServicesFile = process.env.GOOGLE_SERVICES_JSON;
+  return {
+    ...config,
+    android: {
+      ...config.android,
+      ...(googleServicesFile ? { googleServicesFile } : {}),
+    },
+  };
+};

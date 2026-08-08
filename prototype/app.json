@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "CampusSphere",
+    "slug": "campussphere",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "campussphere",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default"
+        }
+      ]
+    ],
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "android": {
+      "package": "com.campus.app",
+      "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6f551538-e60f-4bee-b2e1-08c6e5f5c5eb"
+      }
+    },
+    "owner": "chirag1528"
+  }
+}

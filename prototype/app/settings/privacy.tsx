@@ -1,0 +1,22 @@
+import { Text } from 'react-native';
+import { router } from 'expo-router';
+import { goBackOrReplace } from '@/lib/navigation';
+import { apiQueryKey, useApiMutation, useApiQuery } from '@/lib/api-hooks';
+import { Button, Card, IconButton, Screen, StateView, TopBar } from '@/components/ui';
+import { queryClient } from '@/lib/query';
+import { useAppStore } from '@/store/useAppStore';
+import { apiDelete } from '@/lib/api';
+import { usePalette } from '@/theme/usePalette';
+
+interface BlockView { blockedUserId: string; createdAt: string }
+interface AccountRequest { id: string; type: 'data_export' | 'account_deletion' | 'campus_change'; status: string; targetUniversityId: string | null; requestedAt: string }
+
+export default function Privacy() {
+  const p = usePalette(); const toast = useAppStore((s) => s.showToast);
+  const blocks = useApiQuery<BlockView[]>(apiQueryKey('blocks'), '/blocks');
+  const requests = useApiQuery<AccountRequest[]>(apiQueryKey('account-requests'), '/account/requests');
+  const createRequest = useApiMutation<AccountRequest, { type: AccountRequest['type'] }>('/account/requests', 'POST', { onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: apiQueryKey('account-requests') }); toast({ type: 'success', message: 'Request submitted for review.' }); }, onError: (error) => toast({ type: 'error', message: error.message }) });
+  const remove = async (userId: string) => { try { await apiDelete(`/blocks/${userId}`); await queryClient.invalidateQueries({ queryKey: apiQueryKey('blocks') }); toast({ type: 'success', message: 'Account unblocked.' }); } catch (error) { toast({ type: 'error', message: (error as Error).message }); } };
+  const cancel = async (id: string) => { try { await apiDelete(`/account/requests/${id}`); await queryClient.invalidateQueries({ queryKey: apiQueryKey('account-requests') }); toast({ type: 'success', message: 'Request cancelled.' }); } catch (error) { toast({ type: 'error', message: (error as Error).message }); } };
+  return <Screen><TopBar title="Privacy & account" subtitle="Server-enforced controls" left={<IconButton icon="chevron-back" label="Back" onPress={() => goBackOrReplace('/(tabs)/profile')} />} />{blocks.isLoading ? <StateView icon="hourglass-outline" title="Loading privacy controls" detail="Fetching server-side settings…" /> : blocks.isError ? <StateView icon="cloud-offline" tone="danger" title="Privacy controls unavailable" detail={blocks.error.message} action="Retry" onAction={() => void blocks.refetch()} /> : <><Card style={{ marginTop: 12 }}><Text style={{ color: p.ink, fontWeight: '900', fontSize: 17 }}>Blocked accounts</Text><Text style={{ color: p.muted, marginTop: 6 }}>{blocks.data?.length ?? 0} account(s). Blocks are bilateral on protected surfaces.</Text></Card>{blocks.data?.map((item) => <Card key={item.blockedUserId} style={{ marginTop: 10 }}><Button variant="danger" label={`Unblock ${item.blockedUserId.slice(0, 8)}`} icon="person-add-outline" onPress={() => void remove(item.blockedUserId)} /></Card>)}<Card style={{ marginTop: 14 }}><Text style={{ color: p.ink, fontWeight: '900', fontSize: 17 }}>Account requests</Text><Text style={{ color: p.muted, marginVertical: 8 }}>Requests enter audited review. This screen never deletes an account or changes campus directly.</Text><Button label="Request data export" icon="download-outline" variant="secondary" loading={createRequest.isPending} onPress={() => createRequest.mutate({ type: 'data_export' })} /><Button label="Request campus change" icon="school-outline" variant="secondary" onPress={() => router.push('/settings/campus-change')} /><Button label="Request account deletion" icon="trash-outline" variant="danger" loading={createRequest.isPending} onPress={() => createRequest.mutate({ type: 'account_deletion' })} /></Card>{requests.isLoading ? <StateView icon="hourglass-outline" title="Loading requests" detail="Reading request status…" /> : requests.data?.map((request) => <Card key={request.id} style={{ marginTop: 10 }}><Text style={{ color: p.ink, fontWeight: '800', textTransform: 'capitalize' }}>{request.type.replaceAll('_',' ')}</Text><Text style={{ color: p.muted, marginTop: 4 }}>{request.status} · {new Date(request.requestedAt).toLocaleDateString()}</Text>{request.status === 'pending' ? <Button label="Cancel request" icon="close-circle-outline" variant="ghost" onPress={() => void cancel(request.id)} /> : null}</Card>)}</>}</Screen>;
+}
