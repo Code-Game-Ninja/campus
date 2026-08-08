@@ -1,6 +1,6 @@
 # CampusSphere MVP Implementation Tasks
 
-**Status:** Draft — awaiting approval before implementation  
+**Status:** Phase 2 in progress — P2.1 complete; P2.2 migration baseline added, execution blocked by local Supabase CLI setup
 **Source:** `docs/mvp_implementation_questionnaire.md`, `docs/backend_mvp_implementation_plan.md`, `docs/architecture_decisions.md`  
 **Target:** Closed-pilot MVP by 15 August 2026  
 **Implementer:** Codex with owner review  
@@ -94,6 +94,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Read-only.
 - **Estimate:** 2 hours.
 - **Gate:** None.
+- **Status:** [x] Complete — inventory completed during Phase 1 implementation.
 
 ### P1.2 Remove organizer/professional access
 
@@ -105,6 +106,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Isolated frontend change; preserve event attendee routes.
 - **Estimate:** 3–4 hours.
 - **Gate:** Phase 1 approval.
+- **Status:** [x] Complete — committed in `439e6d5` on `feature/mobile-student-boundary`.
 
 ### P1.3 Preserve attendee event flows and remove management controls
 
@@ -116,6 +118,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Keep mock adapter until real API cutover.
 - **Estimate:** 3–4 hours.
 - **Gate:** Phase 1 approval.
+- **Status:** [x] Complete — attendee event details, registration, waitlist, sharing, maps, reminders, and gallery preserved; management/team controls removed.
 
 ### P1.4 Update mock contracts and disabled screens
 
@@ -127,6 +130,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Additive fixture changes first.
 - **Estimate:** 3 hours.
 - **Gate:** Owner approves Phase 1 before backend work.
+- **Status:** [x] Complete — organizer/event-team mock state and types removed; student mock session and attendee fixtures retained.
 
 ## Phase 2 — Supabase Foundation and Schema
 
@@ -140,6 +144,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Remove only new scaffold files if rejected.
 - **Estimate:** 2 hours.
 - **Gate:** Technical approval.
+- **Status:** [x] Complete — local-only Supabase-first scaffold added; no external resources or secrets created.
 
 ### P2.2 Add SQL migrations, RLS, and seed workflow
 
@@ -151,6 +156,8 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Never edit applied migrations; use additive migrations.
 - **Estimate:** 3–4 hours.
 - **Gate:** Schema review.
+- **Status:** [~] In progress — foundation migration, seed guard, and static SQL validation added; local execution remains blocked because the Supabase CLI is not installed and Corepack cannot download pnpm in the managed session.
+- **Blocker resolution:** Install/activate pnpm and the Supabase CLI, then run the local migration/RLS/seed verification before continuing.
 
 ### P2.3 Add identity, campus, profile, and consent schema
 
