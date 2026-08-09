@@ -1,6 +1,6 @@
 import { apiGet, apiPatch } from './api';
 
-export type NotificationEventType = 'post_reaction' | 'comment' | 'event_reminder' | 'club_update' | 'chat_message' | 'security_alert';
+export type NotificationEventType = 'post_reaction' | 'comment' | 'event_reminder' | 'event_changed' | 'event_cancelled' | 'team_application' | 'team_invitation' | 'team_application_accepted' | 'team_application_rejected' | 'connection_request' | 'connection_accepted' | 'chat_message' | 'club_update' | 'security_alert';
 export interface NotificationPreferenceResponse { id: string; campusId: string; userId: string; eventType: NotificationEventType; inApp: boolean; push: boolean; emailDigest: boolean; updatedAt: string }
 export interface NotificationResponse { id: string; campusId: string; recipientId: string; eventType: NotificationEventType; title: string; body: string; read: boolean; referenceType: string | null; referenceId: string | null; createdAt: string }
 
@@ -30,6 +30,14 @@ export function notificationLabel(eventType: NotificationEventType): string {
     post_reaction: 'Post reactions',
     comment: 'Comments',
     event_reminder: 'Event reminders',
+    event_changed: 'Event changes',
+    event_cancelled: 'Cancelled events',
+    team_application: 'Team applications',
+    team_invitation: 'Team invitations',
+    team_application_accepted: 'Accepted applications',
+    team_application_rejected: 'Rejected applications',
+    connection_request: 'Connection requests',
+    connection_accepted: 'Accepted connections',
     club_update: 'Club updates',
     chat_message: 'Messages',
     security_alert: 'Security & account',

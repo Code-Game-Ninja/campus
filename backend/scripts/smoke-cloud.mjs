@@ -35,13 +35,26 @@ async function expectOk(label, path, token = accessToken) {
   return body;
 }
 
-async function expectDenied(label, path, body) {
+async function expectRpcOk(label, functionName, body = {}, token = accessToken) {
+  const { response, body: result } = await request(`/rest/v1/rpc/${functionName}`, token, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`${label}: HTTP ${response.status} ${JSON.stringify(result)}`);
+  checks.push(`PASS ${label}`);
+  return result;
+}
+
+async function expectDenied(label, path, body, allowedStatuses = [401, 403]) {
   const { response, body: result } = await request(path, accessToken, {
     method: 'POST',
     body,
     headers: { Prefer: 'return=minimal' },
   });
   if (response.ok) throw new Error(`${label}: student write unexpectedly succeeded`);
+  if (!allowedStatuses.includes(response.status)) {
+    throw new Error(`${label}: expected authorization denial, received HTTP ${response.status} ${JSON.stringify(result)}`);
+  }
   checks.push(`PASS ${label} (HTTP ${response.status})`);
   return result;
 }
@@ -58,10 +71,21 @@ try {
   await expectOk('team finder read', '/rest/v1/team_requests?select=id,owner_id,title,status&status=eq.open&order=created_at.desc&limit=20');
   await expectOk('notification read', `/rest/v1/notifications?select=id,type,in_app_read_at,created_at&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=20`);
   await expectOk('chat membership read', `/rest/v1/conversation_members?select=conversation_id,conversation:conversations(id,type,name)&user_id=eq.${encodeURIComponent(userId)}&left_at=is.null&limit=20`);
+  await expectRpcOk('feed cursor RPC', 'feed_page', { p_limit: 5 });
+  await expectRpcOk('event cursor RPC', 'events_page', { p_limit: 5 });
+  await expectRpcOk('team cursor RPC', 'team_requests_page', { p_limit: 5 });
+  await expectRpcOk('notification cursor RPC', 'notifications_page', { p_limit: 5, p_unread_only: false });
+  await expectRpcOk('privacy-aware search RPC', 'search_mobile', { p_query: 'campus', p_type: 'all', p_limit: 5 });
 
   await expectDenied('student event authoring denied', '/rest/v1/events', {
+    organizer_id: '00000000-0000-0000-0000-000000000001',
+    campus_id: '00000000-0000-0000-0000-000000000001',
     title: 'CampusSphere authorization smoke test',
-    status: 'published',
+    description: 'This row must never be created by a mobile student.',
+    category: 'authorization-test',
+    starts_at: '2099-01-01T10:00:00.000Z',
+    ends_at: '2099-01-01T11:00:00.000Z',
+    status: 'draft',
   });
 
   if (secondAccessToken) {
@@ -71,6 +95,15 @@ try {
     if (Array.isArray(privateRows) && privateRows.length > 0 && privateRows[0].profile_visibility === 'private') {
       throw new Error('private profile leaked to the second user');
     }
+
+    const moderationQueue = await request('/rest/v1/rpc/list_moderation_queue', secondAccessToken, {
+      method: 'POST', body: JSON.stringify({ p_status: 'open', p_limit: 1 }),
+    });
+    if (moderationQueue.response.ok) throw new Error('moderator queue exposed to normal student');
+    if (![401, 403].includes(moderationQueue.response.status)) {
+      throw new Error(`moderator queue denial returned HTTP ${moderationQueue.response.status}`);
+    }
+    checks.push(`PASS moderator queue denied (HTTP ${moderationQueue.response.status})`);
   }
 
   console.log(checks.join('\n'));

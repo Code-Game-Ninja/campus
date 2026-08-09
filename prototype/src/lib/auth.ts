@@ -116,11 +116,11 @@ export async function bootstrapIdentity(campusId: string): Promise<{ userId: str
   });
 }
 
-export async function signOut(): Promise<void> {
+export async function signOut(scope: 'local' | 'global' = 'local'): Promise<void> {
   const session = await load();
   if (session?.access_token) {
     try {
-      await supabaseRequest('auth', 'logout', { method: 'POST', accessToken: session.access_token });
+      await supabaseRequest('auth', `logout?scope=${scope}`, { method: 'POST', accessToken: session.access_token });
     } catch {
       // Local sign-out must still succeed when the remote session already expired.
     }

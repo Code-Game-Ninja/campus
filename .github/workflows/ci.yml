@@ -1,0 +1,42 @@
+name: CampusSphere CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, feature/mobile-student-boundary]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: prototype/package-lock.json
+      - name: Backend static checks
+        working-directory: backend
+        run: |
+          node scripts/check-config.mjs
+          node scripts/check-sql.mjs
+          node scripts/check-contract.mjs
+          node --check scripts/get-test-token.mjs
+          node --check scripts/process-reminders.mjs
+          node --check scripts/process-domain-jobs.mjs
+          node --check scripts/process-notifications.mjs
+          node --check scripts/health-cloud.mjs
+          node --check scripts/smoke-cloud.mjs
+      - name: Mobile install
+        working-directory: prototype
+        run: npm ci
+      - name: Mobile typecheck
+        working-directory: prototype
+        run: npm run typecheck
+      - name: Secret pattern check
+        shell: bash
+        run: |
+          if git grep -nE '(service_role_secret|BEGIN PRIVATE KEY|sk_live_)' -- ':!*.example'; then exit 1; fi

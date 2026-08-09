@@ -13,8 +13,22 @@ if (!existsSync(join(root, 'supabase', 'seed.sql'))) failures.push('supabase/see
 if (!existsSync(join(root, 'supabase', 'config.toml'))) failures.push('supabase/config.toml is missing');
 
 const migrationText = migrationFiles.map((file) => readFileSync(join(migrationsDir, file), 'utf8')).join('\n');
+const migrationEight = readFileSync(join(migrationsDir, '0008_notification_outbox.sql'), 'utf8').toLowerCase();
+
+for (const file of migrationFiles) {
+  const sql = readFileSync(join(migrationsDir, file), 'utf8');
+  if (/,[\t ]*\r?\n[\t ]*\)/.test(sql)) failures.push(`${file} contains a trailing comma before )`);
+}
 for (const marker of ['create extension if not exists pgcrypto', 'create schema if not exists private', 'create or replace function public.current_user_id', 'alter table public.users add column if not exists campus_id uuid', 'alter table public.profiles add column if not exists profile_visibility text', 'alter table public.users enable row level security', 'create trigger on_auth_user_created', 'create table if not exists public.events', 'create or replace function public.register_for_event', 'alter table public.events enable row level security', 'create table if not exists public.posts', 'create table if not exists public.team_requests', 'create table if not exists public.connections', 'create table if not exists public.notifications', 'create table if not exists public.notification_outbox', 'create or replace function public.enqueue_due_event_reminders', 'create or replace function public.claim_notification_outbox', 'create or replace function public.complete_notification_delivery', 'create table if not exists public.user_blocks', 'create table if not exists public.analytics_events', 'create policy analytics_consent_insert', 'create table if not exists public.conversations', 'create table if not exists public.conversation_members', 'create table if not exists public.messages', 'alter table public.conversations add column if not exists last_message_id uuid', 'alter table public.messages add column if not exists client_message_id text', 'create unique index if not exists messages_sender_client_uidx', 'create table if not exists public.chat_message_events', 'create or replace function public.send_message', 'create or replace function public.mark_conversation_read', 'create or replace function public.attach_message_file', 'supabase_realtime', 'chat-attachments']) {
   if (!migrationText.toLowerCase().includes(marker)) failures.push(`foundation migration missing: ${marker}`);
+}
+
+for (const marker of ['create or replace function public.search_mobile', 'create or replace function public.apply_moderation_action', 'create or replace function public.list_moderation_queue', 'create or replace function public.list_moderation_audit', 'create or replace function public.record_analytics_event', 'create or replace function public.request_account_deletion', 'create or replace function public.request_data_export', 'create or replace function public.export_my_data', 'create or replace function public.claim_account_deletions', 'create or replace function public.expire_team_requests', 'create or replace function public.cleanup_retention', 'create or replace function public.consume_rate_limit', 'create or replace function public.feed_page', 'create or replace function public.events_page', 'create or replace function public.team_requests_page', 'create or replace function public.notifications_page', 'create or replace function public.update_notification_preferences', 'create table if not exists public.account_requests', 'create unique index if not exists user_restrictions_active_uidx', 'create policy post_media_read on storage.objects']) {
+  if (!migrationText.toLowerCase().includes(marker)) failures.push(`domain hardening migration missing: ${marker}`);
+}
+
+if (migrationEight.includes("quiet_hours ->> 'start'")) {
+  failures.push('applied migration 0008 contains later quiet-hour changes; move them to a new migration');
 }
 
 const seed = readFileSync(join(root, 'supabase', 'seed.sql'), 'utf8').toLowerCase();
