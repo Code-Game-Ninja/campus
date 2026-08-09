@@ -1,25 +1,31 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { setAccessToken, registerUnauthorizedHandler } from './api';
+import { registerUnauthorizedHandler, setAccessToken } from './api';
+import { SupabaseHttpError, supabaseRequest } from './supabase-http';
 import type { OnboardingRoute } from '@/store/useAppStore';
 
-const SESSION_KEY = 'campussphere.mock.session';
+const SESSION_KEY = 'campussphere.supabase.session';
 
-export interface AuthSession { access_token: string; refresh_token: string; expires_at?: number; user?: { id: string; email?: string } }
+export interface AuthSession {
+  access_token: string;
+  refresh_token: string;
+  expires_at?: number;
+  expires_in?: number;
+  token_type?: string;
+  user?: { id: string; email?: string };
+}
 
 async function save(session: AuthSession | null): Promise<void> {
   setAccessToken(session?.access_token ?? null);
   const value = session ? JSON.stringify(session) : null;
   if (Platform.OS === 'web') {
+    if (typeof localStorage === 'undefined') return;
     if (value) localStorage.setItem(SESSION_KEY, value);
     else localStorage.removeItem(SESSION_KEY);
     return;
   }
-  if (value) {
-    await SecureStore.setItemAsync(SESSION_KEY, value);
-  } else {
-    await SecureStore.deleteItemAsync(SESSION_KEY);
-  }
+  if (value) await SecureStore.setItemAsync(SESSION_KEY, value);
+  else await SecureStore.deleteItemAsync(SESSION_KEY);
 }
 
 async function load(): Promise<AuthSession | null> {
@@ -27,45 +33,98 @@ async function load(): Promise<AuthSession | null> {
     ? (typeof localStorage === 'undefined' ? null : localStorage.getItem(SESSION_KEY))
     : await SecureStore.getItemAsync(SESSION_KEY);
   if (!raw) return null;
-  try { return JSON.parse(raw) as AuthSession; } catch { return null; }
+  try {
+    const session = JSON.parse(raw) as AuthSession;
+    return session.access_token && session.refresh_token ? session : null;
+  } catch {
+    return null;
+  }
 }
 
-export async function sendOtp(email: string): Promise<void> { 
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 500));
+function normalizeSession(session: AuthSession): AuthSession {
+  if (!session.expires_at && session.expires_in) {
+    session.expires_at = Math.floor(Date.now() / 1000) + session.expires_in;
+  }
+  return session;
 }
 
-export async function verifyOtp(email: string, token: string): Promise<AuthSession> { 
-  const session: AuthSession = {
-    access_token: 'mock-access-token',
-    refresh_token: 'mock-refresh-token',
-    expires_at: Date.now() / 1000 + 3600,
-    user: { id: 'u_123', email }
-  };
+export async function sendOtp(email: string): Promise<void> {
+  await supabaseRequest('auth', 'otp', {
+    method: 'POST',
+    body: { email: email.trim().toLowerCase(), create_user: true },
+  });
+}
+
+export async function verifyOtp(email: string, token: string): Promise<AuthSession> {
+  const session = normalizeSession(await supabaseRequest<AuthSession>('auth', 'verify', {
+    method: 'POST',
+    body: { email: email.trim().toLowerCase(), token: token.trim(), type: 'email' },
+  }));
+  if (!session.access_token || !session.refresh_token) throw new Error('Supabase did not return a valid session.');
   await save(session);
-  return session; 
+  return session;
 }
 
-export async function restoreSession(forceRefresh = false): Promise<AuthSession | null> { 
-  const existing = await load(); 
-  if (!existing) return null; 
-  setAccessToken(existing.access_token); 
-  return existing; 
+async function refreshSession(session: AuthSession): Promise<AuthSession | null> {
+  try {
+    const refreshed = normalizeSession(await supabaseRequest<AuthSession>('auth', 'token?grant_type=refresh_token', {
+      method: 'POST',
+      body: { refresh_token: session.refresh_token },
+    }));
+    await save(refreshed);
+    return refreshed;
+  } catch (error) {
+    if (error instanceof SupabaseHttpError && [400, 401, 403].includes(error.status)) {
+      await save(null);
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function restoreSession(forceRefresh = false): Promise<AuthSession | null> {
+  const existing = await load();
+  if (!existing) {
+    setAccessToken(null);
+    return null;
+  }
+  const expiresSoon = !existing.expires_at || existing.expires_at <= Math.floor(Date.now() / 1000) + 60;
+  if (forceRefresh || expiresSoon) return refreshSession(existing);
+  setAccessToken(existing.access_token);
+  return existing;
 }
 
 export async function resolveOnboardingRoute(): Promise<OnboardingRoute | null> {
   const session = await restoreSession();
   if (!session) return null;
-  
-  // Hardcoded to return 'complete' for the prototype, bypassing onboarding logic
-  return 'complete';
+  const rows = await supabaseRequest<Array<{
+    campus_id: string | null;
+    onboarding_completed_at: string | null;
+  }>>('rest', 'users?select=campus_id,onboarding_completed_at&limit=1', { accessToken: session.access_token });
+  const identity = rows[0];
+  if (!identity?.campus_id) return 'university';
+  return identity.onboarding_completed_at ? 'complete' : 'profile';
 }
 
-export async function bootstrapIdentity(universityId: string): Promise<{ userId: string; campusId: string; created: boolean }> { 
-  return { userId: 'u_123', campusId: 'c_1', created: true }; 
+export async function bootstrapIdentity(campusId: string): Promise<{ userId: string; campusId: string; created: boolean }> {
+  const session = await restoreSession();
+  if (!session?.user?.id) throw new Error('Authentication is required.');
+  return supabaseRequest('rest', 'rpc/bootstrap_mobile_identity', {
+    method: 'POST',
+    accessToken: session.access_token,
+    body: { target_campus_id: campusId },
+  });
 }
 
 export async function signOut(): Promise<void> {
+  const session = await load();
+  if (session?.access_token) {
+    try {
+      await supabaseRequest('auth', 'logout', { method: 'POST', accessToken: session.access_token });
+    } catch {
+      // Local sign-out must still succeed when the remote session already expired.
+    }
+  }
   await save(null);
 }
 

@@ -1,6 +1,6 @@
 # CampusSphere MVP Implementation Tasks
 
-**Status:** Phase 2 in progress — P2.1 complete; P2.2 migration baseline added, execution blocked by local Supabase CLI setup
+**Status:** Phase 2/first mobile integration cut complete locally — seven CampusSphere migrations and the real Supabase mobile adapter are implemented; cloud push, authenticated RLS/concurrency tests, real-data smoke testing, jobs/email, and release verification remain
 **Source:** `docs/mvp_implementation_questionnaire.md`, `docs/backend_mvp_implementation_plan.md`, `docs/architecture_decisions.md`  
 **Target:** Closed-pilot MVP by 15 August 2026  
 **Implementer:** Codex with owner review  
@@ -156,8 +156,8 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Never edit applied migrations; use additive migrations.
 - **Estimate:** 3–4 hours.
 - **Gate:** Schema review.
-- **Status:** [~] In progress — foundation migration, seed guard, and static SQL validation added; local execution remains blocked because the Supabase CLI is not installed and Corepack cannot download pnpm in the managed session.
-- **Blocker resolution:** Install/activate pnpm and the Supabase CLI, then run the local migration/RLS/seed verification before continuing.
+- **Status:** [~] In progress — seven additive migration files are prepared and local scaffold validation passes. The owner must rerun cloud `db:lint` and `db:push` after migrations `0006` and `0007`, then run authenticated RLS tests.
+- **Blocker resolution:** Authenticate the Supabase CLI, set `SUPABASE_PROJECT_REF` outside Git, run `pnpm db:lint`, then `pnpm db:push`.
 
 ### P2.3 Add identity, campus, profile, and consent schema
 
@@ -169,6 +169,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Avoid collecting unnecessary identity data.
 - **Estimate:** 3 hours.
 - **Gate:** None.
+- **Status:** [~] In progress — identity, campuses, profiles, skills, interests, links, privacy, discoverability, consent, mobile campus bootstrap, and transactional profile onboarding/update are implemented in `0002` and `0006`; cloud execution and RLS verification pending.
 
 ### P2.4 Add event attendee schema
 
@@ -180,6 +181,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Preserve registration history when status changes.
 - **Estimate:** 4 hours.
 - **Gate:** Event schema approval.
+- **Status:** [~] In progress — attendee event, public organizer metadata, registration/waitlist, bookmarks, reminders, event changes, attendee-count RPC, and student-only RLS are implemented in `0003` and `0007`; cloud execution/concurrency verification pending.
 
 ### P2.5 Add social, team, chat, notification, moderation, and analytics schema
 
@@ -191,6 +193,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Split large migrations.
 - **Estimate:** 4 hours.
 - **Gate:** Schema approval.
+- **Status:** [~] In progress — social/team/safety schema is in `0004`; separate CampusSphere chat/realtime/storage/RPC schema is in `0005`; mobile-safe profile/domain RPC additions are in `0006`/`0007`. ChitChat at `E:\projects\ChitChat` remains read-only reference material and is not edited or migrated. Cloud lint/push and RLS/concurrency verification are pending.
 
 ### P2.6 Seed the current mock data
 
@@ -202,6 +205,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Development-only.
 - **Estimate:** 3 hours.
 - **Gate:** None.
+- **Status:** [!] Deferred/removed — the mobile prototype no longer ships mock users, events, posts, chat rooms, or mock API handlers. Deterministic seed data must be added only as a development-only Supabase `seed.sql` workflow after the cloud schema is verified; production will never auto-seed.
 
 ## Phase 3 — Auth, Onboarding, Profiles
 
@@ -215,6 +219,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** No silent production mock fallback.
 - **Estimate:** 4 hours.
 - **Gate:** Auth demo approval.
+- **Status:** [~] In progress — mock auth was removed. Mobile OTP, verification, refresh, persistent SecureStore/web session storage, logout, onboarding-route lookup, campus bootstrap, and profile onboarding now use CampusSphere Supabase Auth/PostgREST/RPC; live credential/OTP verification remains.
 
 ### P3.2 Implement campus verification and onboarding
 
@@ -250,6 +255,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Local seed adapter only.
 - **Estimate:** 3 hours.
 - **Gate:** None.
+- **Status:** [~] In progress — Events are reachable from Discover. Published same-campus list/detail, attendee totals, registration state, reminder state, and organizer display metadata use CampusSphere Supabase; cloud real-data/RLS smoke verification is pending.
 
 ### P4.2 Implement save, registration, cancellation, capacity, and waitlist
 
@@ -261,6 +267,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Transactional database functions.
 - **Estimate:** 4 hours.
 - **Gate:** Event participation approval.
+- **Status:** [~] In progress — registration/cancellation call transactional RPCs and event bookmarks/reminders use real tables. Mock fallback is removed; concurrent cloud verification and reminder job execution remain.
 
 ### P4.3 Implement reminders and event-change handling
 
@@ -296,6 +303,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Text-only fallback if storage is not approved.
 - **Estimate:** 4 hours.
 - **Gate:** None.
+- **Status:** [~] In progress — post create/read/edit/delete, ownership, visibility, event linkage, and approved media metadata map to CampusSphere Supabase. Storage upload and real-data RLS verification remain.
 
 ### P5.2 Implement newest-first feed and cursor pagination
 
@@ -307,6 +315,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Keep chronological ranking.
 - **Estimate:** 3 hours.
 - **Gate:** Feed approval.
+- **Status:** [~] In progress — newest-first authorized feed reads and mobile view mapping use Supabase; cursor pagination and load verification remain.
 
 ### P5.3 Implement comments, reactions, bookmarks, and deletion
 
@@ -318,6 +327,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Default to like-only and flat comments.
 - **Estimate:** 4 hours.
 - **Gate:** Posts approval.
+- **Status:** [~] In progress — flat comments, like-only reactions, private bookmarks, counts, and post deletion use real tables/RLS; cloud duplicate and ownership tests remain.
 
 ## Phase 6 — Team Finder
 
@@ -331,6 +341,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Deterministic matching only.
 - **Estimate:** 4 hours.
 - **Gate:** None.
+- **Status:** [~] In progress — Team Finder request create/read/update/close and discoverable-profile search/recommendations use Supabase. Taxonomy persistence, expiry automation, and matching quality remain.
 
 ### P6.2 Implement applications and membership state machine
 
@@ -342,6 +353,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Default to apply-and-owner-approve.
 - **Estimate:** 4 hours.
 - **Gate:** Team Finder approval.
+- **Status:** [~] In progress — application submit/owner decision plus owner invitations/member responses are implemented with transactional RPCs; concurrency/RLS tests remain.
 
 ### P6.3 Integrate team chat membership
 
@@ -353,6 +365,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Repair script for local development.
 - **Estimate:** 2–3 hours.
 - **Gate:** None.
+- **Status:** [~] In progress — team-member triggers synchronize chat membership and accepted members can resolve/open the shared room; cloud integration verification remains.
 
 ## Phase 7 — Connections and Chat
 
@@ -366,6 +379,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Hide following UI if it is not needed for first cut.
 - **Estimate:** 3–4 hours.
 - **Gate:** None.
+- **Status:** [~] In progress — person follows and connection request/accept/decline/cancel/end use Supabase tables/RPCs with block-aware server checks; cooldown/suggestion testing remains.
 
 ### P7.2 Implement direct and team chat rooms
 
@@ -377,6 +391,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Direct/team chat only.
 - **Estimate:** 4 hours.
 - **Gate:** Chat foundation approval.
+- **Status:** [~] Backend room/RLS/RPC foundation is in `0005`/`0007`; mobile direct/team room reads, normalized member display mapping, mute preferences, and RPC creation target CampusSphere Supabase. ChitChat is not modified. Cloud execution and authenticated integration tests are pending.
 
 ### P7.3 Implement message lifecycle and realtime reconciliation
 
@@ -388,6 +403,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Ship persisted text, unread, reads, and reconnect first if needed.
 - **Estimate:** 4 hours.
 - **Gate:** Chat approval.
+- **Status:** [~] Backend supports text/file/link/GIF/sticker/system messages, client-id idempotency, replies, 15-minute edit/delete RPCs, reads, reactions, search, presence, typing-channel compatibility, and Realtime invalidation. Mobile room/message/send/read/edit/delete/reaction/mute/report calls are real; file upload UI and full cloud/mobile E2E verification remain.
 
 ## Phase 8 — Notifications, Email, and Reminders
 
@@ -401,6 +417,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Keep event reminders separately flaggable.
 - **Estimate:** 3–4 hours.
 - **Gate:** Notification approval.
+- **Status:** [~] In progress — mobile notification reads/read-state, preference storage, and device registration now use Supabase. Server outbox generation/retry jobs and category payload verification remain.
 
 ### P8.2 Add approved email delivery
 
@@ -436,6 +453,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Defer message search/autocomplete if needed.
 - **Estimate:** 3–4 hours.
 - **Gate:** Search review.
+- **Status:** [~] In progress — profile/event/post/team search queries now use RLS-filtered Supabase tables; ranking, cursor pagination, and message search UI remain.
 
 ### P9.2 Implement blocking and reports
 
@@ -447,6 +465,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Blocking remains reversible with audit history.
 - **Estimate:** 3 hours.
 - **Gate:** Safety approval.
+- **Status:** [~] In progress — block/unblock and user/post/message/team/event report submission use real safety tables and server policy helpers; full cross-feature block matrix testing remains.
 
 ### P9.3 Implement separate moderator/support workflow
 

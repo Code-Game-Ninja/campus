@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { openUnderConstruction } from '@/lib/navigation';
 
 const categories = [
-  { title: 'Events', detail: 'Under construction', icon: 'calendar', color: '#FFE0F0', feature: 'Events' },
+  { title: 'Events', detail: 'Discover campus events', icon: 'calendar', color: '#FFE0F0', route: '/discover/events' },
   { title: 'Notes', detail: 'Study resources', icon: 'document-text', color: '#E9E6FF', route: '/discover/notes' },
   { title: 'Clubs', detail: 'Under construction', icon: 'people', color: '#DDF7E8', feature: 'Clubs' },
   { title: 'Opportunities', detail: 'Under construction', icon: 'briefcase', color: '#FFF1C7', feature: 'Opportunities' },

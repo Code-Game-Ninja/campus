@@ -15,8 +15,8 @@ const CONNECT_TIMEOUT_MS = 10_000;
 const MAX_RECONNECT_MS = 30_000;
 
 /**
- * Subscribe to encrypted chat row inserts as cache invalidation signals.
- * Plaintext still comes only from the authorized Nest chat endpoint.
+ * Subscribe to authorized chat event rows as cache invalidation signals.
+ * The persisted message body remains fetched through the authorized app API.
  */
 export function subscribeToRoomMessages(
   roomId: string,
@@ -120,7 +120,7 @@ export function subscribeToRoomMessages(
         connectTimeout = null;
         reconnectAttempt = 0;
         onStatus?.('connected');
-      } else if (frame.kind === 'message-insert') {
+      } else if (frame.kind === 'message-event') {
         if (seenEventIds.has(frame.eventId)) return;
         seenEventIds.add(frame.eventId);
         if (seenEventIds.size > 100) seenEventIds.delete(seenEventIds.values().next().value as string);

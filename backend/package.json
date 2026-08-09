@@ -11,7 +11,10 @@
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",
-    "db:reset": "supabase db reset"
+    "supabase:link": "supabase link --project-ref %SUPABASE_PROJECT_REF%",
+    "db:push": "supabase db push",
+    "db:reset": "supabase db reset",
+    "db:lint": "supabase db lint"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

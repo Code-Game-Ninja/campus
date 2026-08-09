@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import { goBackOrReplace } from '@/lib/navigation';
 import { Button, IconButton, Screen, StateView, TopBar } from '@/components/ui';
-import { apiDelete, apiPost, apiPut } from '@/lib/api';
+import { apiDelete, apiPatch, apiPost, apiPut } from '@/lib/api';
 import { apiQueryKey, useApiMutation, useApiQuery } from '@/lib/api-hooks';
 import type { ChatMessage, ChatMessagePage, ChatRoom } from '@/lib/chat';
 import { queryClient } from '@/lib/query';
@@ -34,12 +34,18 @@ export default function Conversation() {
     },
   );
 
+  useEffect(() => {
+    const latest = messages.data?.items?.[0];
+    if (!id || !latest || latest.id.startsWith('local-')) return;
+    void apiPatch(`/chat/rooms/${id}/read`, { messageId: latest.id });
+  }, [id, messages.data?.items?.[0]?.id]);
+
   const send = useApiMutation<
     ChatMessage,
-    { content: string },
+    { content: string; clientMessageId: string; messageType: 'text' },
     { previous?: ChatMessagePage; optimisticId: string; content: string }
   >(`/chat/rooms/${id}/messages`, 'POST', {
-    onMutate: async ({ content }) => {
+    onMutate: async ({ content, clientMessageId }) => {
       await queryClient.cancelQueries({ queryKey: messagesKey });
       const previous = queryClient.getQueryData<ChatMessagePage>(messagesKey);
       const optimisticId = `local-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -49,6 +55,9 @@ export default function Conversation() {
         roomId: id,
         senderId: me.data?.userId ?? '',
         content,
+        clientMessageId,
+        messageType: 'text',
+        status: 'visible',
         createdAt: new Date().toISOString(),
         editedAt: null,
       };
@@ -162,7 +171,7 @@ export default function Conversation() {
             <View key={message.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '78%', backgroundColor: mine ? p.brand : p.surface, borderWidth: mine ? 0 : 1, borderColor: p.line, borderRadius: 16, borderBottomRightRadius: mine ? 4 : 16, borderBottomLeftRadius: mine ? 16 : 4, paddingHorizontal: 13, paddingVertical: 10, marginBottom: 8, opacity: optimistic ? 0.7 : 1 }}>
               {!mine && room.data?.type !== 'dm' ? <Text style={{ color: p.brand, fontSize: 11, fontWeight: '800', marginBottom: 3 }}>{namesByUserId.get(message.senderId) ?? 'Campus member'}</Text> : null}
               <Text style={{ color: mine ? '#FFFFFF' : p.ink, fontSize: 15, lineHeight: 21 }}>{message.content ?? 'Message unavailable due to encryption/key error.'}</Text>
-              <Text style={{ color: mine ? '#DDE5FF' : p.muted, fontSize: 10, marginTop: 4, textAlign: 'right' }}>{optimistic ? 'Sending…' : new Date(message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</Text>
+              <Text style={{ color: mine ? '#DDE5FF' : p.muted, fontSize: 10, marginTop: 4, textAlign: 'right' }}>{optimistic ? 'Sending…' : `${new Date(message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${message.editedAt ? ' · edited' : ''}`}</Text>
             </View>
           );
         }) : <StateView icon="chatbubble-outline" title="No messages" detail="Start this authorized conversation below." />}
@@ -170,7 +179,7 @@ export default function Conversation() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={{ borderTopWidth: 1, borderTopColor: p.line, paddingTop: 10, flexDirection: 'row', alignItems: 'flex-end', gap: 9 }}>
           <TextInput accessibilityLabel="Message" value={text} onChangeText={setText} multiline placeholder="Message…" placeholderTextColor={p.muted} style={{ flex: 1, minHeight: 44, maxHeight: 110, borderRadius: 22, backgroundColor: p.surface, borderWidth: 1, borderColor: p.line, paddingHorizontal: 15, paddingVertical: 10, color: p.ink }} />
-          <Pressable accessibilityLabel="Send message" disabled={!text.trim() || send.isPending || !me.data?.userId} onPress={() => send.mutate({ content: text.trim() })} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: text.trim() ? p.brand : p.line, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable accessibilityLabel="Send message" disabled={!text.trim() || send.isPending || !me.data?.userId} onPress={() => send.mutate({ content: text.trim(), clientMessageId: `mobile-${Date.now()}-${Math.random().toString(16).slice(2)}`, messageType: 'text' })} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: text.trim() ? p.brand : p.line, alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="send" size={19} color="#FFFFFF" />
           </Pressable>
         </View>

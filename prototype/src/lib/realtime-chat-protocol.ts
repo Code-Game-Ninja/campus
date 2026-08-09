@@ -2,7 +2,7 @@ export type PhoenixMessage = [string | null, string | null, string, string, unkn
 
 export type RealtimeFrame =
   | { kind: 'connected' }
-  | { kind: 'message-insert'; eventId: string }
+  | { kind: 'message-event'; eventId: string; eventType: string }
   | { kind: 'error' }
   | { kind: 'ignore' };
 
@@ -56,7 +56,7 @@ export function parseRealtimeFrame(
     return { kind: 'ignore' };
   }
 
-  return { kind: 'message-insert', eventId: record.id };
+  return { kind: 'message-event', eventId: record.id, eventType: String(record.event_type ?? 'message_created') };
 }
 
 export function encodePhoenixMessage(
