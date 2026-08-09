@@ -63,11 +63,106 @@ create table if not exists public.messages (
   )
 );
 
-alter table public.conversations
-  add constraint conversations_last_message_fk foreign key (last_message_id) references public.messages(id) on delete set null;
+-- Compatibility upgrade for an existing CampusSphere/ChitChat-shaped schema.
+-- The cloud project may already have conversations/messages, so the CREATE
+-- TABLE IF NOT EXISTS declarations above do not add new columns. Add every
+-- column used by the CampusSphere RLS/RPC/realtime contract before constraints
+-- and triggers reference them. Existing legacy rows are preserved.
+alter table public.conversations add column if not exists campus_id uuid;
+alter table public.conversations add column if not exists type text default 'group';
+alter table public.conversations add column if not exists name text;
+alter table public.conversations add column if not exists created_by uuid;
+alter table public.conversations add column if not exists direct_connection_id uuid;
+alter table public.conversations add column if not exists team_request_id uuid;
+alter table public.conversations add column if not exists event_id uuid;
+alter table public.conversations add column if not exists last_message_id uuid;
+alter table public.conversations add column if not exists last_message_preview text;
+alter table public.conversations add column if not exists last_message_time timestamptz;
+alter table public.conversations add column if not exists last_message_sender uuid;
+alter table public.conversations add column if not exists created_at timestamptz default timezone('utc', now());
+alter table public.conversations add column if not exists updated_at timestamptz default timezone('utc', now());
 
-alter table public.conversation_members
-  add constraint conversation_members_last_read_fk foreign key (last_read_message_id) references public.messages(id) on delete set null;
+alter table public.conversation_members add column if not exists id uuid default gen_random_uuid();
+alter table public.conversation_members add column if not exists conversation_id uuid;
+alter table public.conversation_members add column if not exists user_id uuid;
+alter table public.conversation_members add column if not exists role text default 'member';
+alter table public.conversation_members add column if not exists notification_mode text default 'all';
+alter table public.conversation_members add column if not exists joined_at timestamptz default timezone('utc', now());
+alter table public.conversation_members add column if not exists left_at timestamptz;
+alter table public.conversation_members add column if not exists last_read_at timestamptz;
+alter table public.conversation_members add column if not exists last_read_message_id uuid;
+
+alter table public.messages add column if not exists conversation_id uuid;
+alter table public.messages add column if not exists sender_id uuid;
+alter table public.messages add column if not exists client_message_id text;
+alter table public.messages add column if not exists message_type text default 'text';
+alter table public.messages add column if not exists text text;
+alter table public.messages add column if not exists link_url text;
+alter table public.messages add column if not exists reply_to_message_id uuid;
+alter table public.messages add column if not exists metadata jsonb default '{}'::jsonb;
+alter table public.messages add column if not exists status text default 'visible';
+alter table public.messages add column if not exists edited_at timestamptz;
+alter table public.messages add column if not exists deleted_at timestamptz;
+alter table public.messages add column if not exists created_at timestamptz default timezone('utc', now());
+alter table public.messages add column if not exists updated_at timestamptz default timezone('utc', now());
+
+-- Copy common legacy names when they exist, without assuming they exist.
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'messages' and column_name = 'content') then
+    execute 'update public.messages set text = coalesce(text, content::text) where text is null';
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'messages' and column_name = 'user_id') then
+    execute 'update public.messages set sender_id = coalesce(sender_id, user_id) where sender_id is null';
+  end if;
+  update public.conversations set type = 'direct' where lower(coalesce(type, '')) in ('dm', 'direct_message');
+  update public.conversations set type = 'group' where type is null or lower(type) not in ('direct', 'team', 'group', 'event');
+  update public.messages set client_message_id = 'legacy-' || id::text where client_message_id is null;
+  update public.messages set message_type = 'text' where message_type is null or message_type not in ('text', 'file', 'link', 'gif', 'sticker', 'system');
+  update public.messages set metadata = '{}'::jsonb where metadata is null;
+  update public.messages set status = 'visible' where status is null or status not in ('visible', 'deleted', 'removed');
+end;
+$$;
+
+alter table public.conversations alter column type set default 'group';
+alter table public.messages alter column client_message_id set default ('legacy-' || gen_random_uuid()::text);
+alter table public.messages alter column message_type set default 'text';
+alter table public.messages alter column metadata set default '{}'::jsonb;
+alter table public.messages alter column status set default 'visible';
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'conversations_last_message_fk')
+    and (select atttypid from pg_attribute where attrelid = 'public.conversations'::regclass and attname = 'last_message_id' and not attisdropped)
+      = (select atttypid from pg_attribute where attrelid = 'public.messages'::regclass and attname = 'id' and not attisdropped)
+  then
+    alter table public.conversations add constraint conversations_last_message_fk foreign key (last_message_id) references public.messages(id) on delete set null not valid;
+  elsif not exists (select 1 from pg_constraint where conname = 'conversations_last_message_fk') then
+    raise notice 'Skipping conversations_last_message_fk because legacy messages.id uses a different type';
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'conversation_members_last_read_fk')
+    and (select atttypid from pg_attribute where attrelid = 'public.conversation_members'::regclass and attname = 'last_read_message_id' and not attisdropped)
+      = (select atttypid from pg_attribute where attrelid = 'public.messages'::regclass and attname = 'id' and not attisdropped)
+  then
+    alter table public.conversation_members add constraint conversation_members_last_read_fk foreign key (last_read_message_id) references public.messages(id) on delete set null not valid;
+  elsif not exists (select 1 from pg_constraint where conname = 'conversation_members_last_read_fk') then
+    raise notice 'Skipping conversation_members_last_read_fk because legacy messages.id uses a different type';
+  end if;
+end;
+$$;
+
+-- Required conflict targets for the RPCs below when legacy tables were
+-- created without the newer CampusSphere uniqueness constraints.
+create unique index if not exists conversations_direct_connection_uidx
+  on public.conversations (direct_connection_id);
+create unique index if not exists conversations_team_request_uidx
+  on public.conversations (team_request_id);
+create unique index if not exists conversations_event_uidx
+  on public.conversations (event_id);
+create unique index if not exists conversation_members_pair_uidx
+  on public.conversation_members (conversation_id, user_id);
+create unique index if not exists messages_sender_client_uidx
+  on public.messages (sender_id, client_message_id);
 
 create table if not exists public.message_attachments (
   id uuid primary key default gen_random_uuid(),

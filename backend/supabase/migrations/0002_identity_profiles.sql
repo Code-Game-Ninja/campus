@@ -52,6 +52,41 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+-- Compatibility upgrade for an existing CampusSphere database. The original
+-- cloud project may already contain public.users/profiles from an earlier
+-- prototype, so CREATE TABLE IF NOT EXISTS does not add newly required
+-- columns. Add policy/function dependencies before creating any policies.
+alter table public.users add column if not exists email citext;
+alter table public.users add column if not exists campus_id uuid;
+alter table public.users add column if not exists status text default 'pending';
+alter table public.users add column if not exists email_verified_at timestamptz;
+alter table public.users add column if not exists onboarding_completed_at timestamptz;
+alter table public.users add column if not exists age_confirmed_at timestamptz;
+alter table public.users add column if not exists terms_accepted_at timestamptz;
+alter table public.users add column if not exists privacy_accepted_at timestamptz;
+alter table public.users add column if not exists created_at timestamptz default timezone('utc', now());
+alter table public.users add column if not exists updated_at timestamptz default timezone('utc', now());
+
+alter table public.profiles add column if not exists display_name text;
+alter table public.profiles add column if not exists username citext;
+alter table public.profiles add column if not exists bio text default '';
+alter table public.profiles add column if not exists avatar_key text;
+alter table public.profiles add column if not exists course text;
+alter table public.profiles add column if not exists department text;
+alter table public.profiles add column if not exists graduation_year integer;
+alter table public.profiles add column if not exists location_text text;
+alter table public.profiles add column if not exists availability jsonb default '{}'::jsonb;
+alter table public.profiles add column if not exists profile_visibility text default 'private';
+alter table public.profiles add column if not exists discoverable boolean default false;
+alter table public.profiles add column if not exists created_at timestamptz default timezone('utc', now());
+alter table public.profiles add column if not exists updated_at timestamptz default timezone('utc', now());
+
+update public.users set status = 'pending' where status is null;
+update public.profiles set profile_visibility = 'private' where profile_visibility is null;
+update public.profiles set discoverable = false where discoverable is null;
+update public.profiles set bio = '' where bio is null;
+update public.profiles set availability = '{}'::jsonb where availability is null;
+
 create or replace function public.handle_new_auth_user()
 returns trigger
 language plpgsql
