@@ -1,6 +1,6 @@
 # CampusSphere MVP Implementation Tasks
 
-**Status:** Phase 2/first mobile integration cut complete locally — seven CampusSphere migrations and the real Supabase mobile adapter are implemented; cloud push, authenticated RLS/concurrency tests, real-data smoke testing, jobs/email, and release verification remain
+**Status:** Phase 2/first mobile integration cut complete locally and compatibility fixes committed in `355ae13` — eight CampusSphere migrations, the real Supabase mobile adapter, a non-destructive authenticated cloud smoke runner, and the provider-neutral reminder/notification outbox are implemented; cloud push retry, authenticated RLS/concurrency tests, delivery worker/provider setup, and release verification remain
 **Source:** `docs/mvp_implementation_questionnaire.md`, `docs/backend_mvp_implementation_plan.md`, `docs/architecture_decisions.md`  
 **Target:** Closed-pilot MVP by 15 August 2026  
 **Implementer:** Codex with owner review  
@@ -156,7 +156,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Never edit applied migrations; use additive migrations.
 - **Estimate:** 3–4 hours.
 - **Gate:** Schema review.
-- **Status:** [~] In progress — seven additive migration files are prepared and local scaffold validation passes. The owner must rerun cloud `db:lint` and `db:push` after migrations `0006` and `0007`, then run authenticated RLS tests.
+- **Status:** [~] In progress — eight additive migration files are prepared and local scaffold validation passes. `backend/scripts/smoke-cloud.mjs` provides non-destructive authenticated reads plus a student event-authoring denial check. Cloud retry is currently blocked by missing/incorrect `SUPABASE_DB_PASSWORD`; set the existing project database password outside Git, rerun cloud `db:lint` and `db:push`, then run the smoke runner with dedicated test tokens and complete authenticated RLS/concurrency tests.
 - **Blocker resolution:** Authenticate the Supabase CLI, set `SUPABASE_PROJECT_REF` outside Git, run `pnpm db:lint`, then `pnpm db:push`.
 
 ### P2.3 Add identity, campus, profile, and consent schema
@@ -169,7 +169,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Avoid collecting unnecessary identity data.
 - **Estimate:** 3 hours.
 - **Gate:** None.
-- **Status:** [~] In progress — identity, campuses, profiles, skills, interests, links, privacy, discoverability, consent, mobile campus bootstrap, and transactional profile onboarding/update are implemented in `0002` and `0006`; cloud execution and RLS verification pending.
+- **Status:** [~] In progress — identity, campuses, profiles, skills, interests, links, privacy, discoverability, consent, mobile campus bootstrap, and transactional profile onboarding/update are implemented in `0002` and `0006`. Cloud push exposed a pre-existing legacy `public.users` table without `campus_id`; `0002` now performs a rerunnable compatibility upgrade before creating policies. Retry and authenticated RLS verification are pending.
 
 ### P2.4 Add event attendee schema
 
@@ -267,7 +267,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Transactional database functions.
 - **Estimate:** 4 hours.
 - **Gate:** Event participation approval.
-- **Status:** [~] In progress — registration/cancellation call transactional RPCs and event bookmarks/reminders use real tables. Mock fallback is removed; concurrent cloud verification and reminder job execution remain.
+- **Status:** [~] In progress — registration/cancellation call transactional RPCs and event bookmarks/reminders use real tables. Mock fallback is removed; migration `0008_notification_outbox.sql` now adds idempotent due-reminder generation and service-role worker claiming/retry state. Concurrent cloud verification and scheduled worker execution remain.
 
 ### P4.3 Implement reminders and event-change handling
 
@@ -391,7 +391,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Direct/team chat only.
 - **Estimate:** 4 hours.
 - **Gate:** Chat foundation approval.
-- **Status:** [~] Backend room/RLS/RPC foundation is in `0005`/`0007`; mobile direct/team room reads, normalized member display mapping, mute preferences, and RPC creation target CampusSphere Supabase. ChitChat is not modified. Cloud execution and authenticated integration tests are pending.
+- **Status:** [~] Backend room/RLS/RPC foundation is in `0005`/`0007`; mobile direct/team room reads, normalized member display mapping, mute preferences, and RPC creation target CampusSphere Supabase. Cloud push exposed legacy `conversations`/`messages` tables missing `last_message_id`; `0005` now upgrades missing chat columns and conflict indexes before foreign keys/RPCs. ChitChat is not modified. Retry and authenticated integration tests are pending.
 
 ### P7.3 Implement message lifecycle and realtime reconciliation
 
@@ -417,7 +417,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Keep event reminders separately flaggable.
 - **Estimate:** 3–4 hours.
 - **Gate:** Notification approval.
-- **Status:** [~] In progress — mobile notification reads/read-state, preference storage, and device registration now use Supabase. Server outbox generation/retry jobs and category payload verification remain.
+- **Status:** [~] In progress — mobile notification reads/read-state, preference storage, and device registration use Supabase. Migration `0008_notification_outbox.sql` adds idempotent event-reminder notification generation, a provider-neutral delivery outbox, safe worker claiming, bounded retries, and service-role-only execution. Cloud verification, the scheduled worker, provider delivery, and category payload verification remain.
 
 ### P8.2 Add approved email delivery
 

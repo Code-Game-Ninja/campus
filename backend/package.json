@@ -7,6 +7,7 @@
   "scripts": {
     "check:config": "node scripts/check-config.mjs",
     "check:sql": "node scripts/check-sql.mjs",
+    "smoke:cloud": "node scripts/smoke-cloud.mjs",
     "typecheck": "tsc --noEmit",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",

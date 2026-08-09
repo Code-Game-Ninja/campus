@@ -35,6 +35,20 @@ pnpm db:lint
 pnpm db:push
 ```
 
+## Authenticated cloud smoke checks
+
+After the cloud migrations are applied, run the read-only student-boundary checks with two dedicated pilot test users. Pass access tokens only through the shell environment; do not put them in `.env`, Git, or the mobile bundle.
+
+```powershell
+$env:CAMPUSSPHERE_SUPABASE_URL = $env:SUPABASE_URL
+$env:CAMPUSSPHERE_SUPABASE_ANON_KEY = $env:SUPABASE_ANON_KEY
+$env:CAMPUSSPHERE_TEST_ACCESS_TOKEN = "<student-a-access-token>"
+$env:CAMPUSSPHERE_TEST_ACCESS_TOKEN_2 = "<student-b-access-token>"
+pnpm smoke:cloud
+```
+
+The runner verifies authenticated identity/profile reads, published event discovery, feed, Team Finder, notifications, chat membership visibility, and that a student event-authoring request is rejected. It does not create or mutate test data.
+
 Copy `.env.example` to `.env` for local development. Real values must stay outside Git. The service-role key is backend-only and must never be shipped in the mobile app.
 
 ## Planned next steps
