@@ -31,12 +31,17 @@ jobs:
           node --check scripts/process-notifications.mjs
           node --check scripts/health-cloud.mjs
           node --check scripts/smoke-cloud.mjs
+          node --check scripts/verify-cloud-mvp.mjs
+          node --check scripts/load-cloud.mjs
       - name: Mobile install
         working-directory: prototype
         run: npm ci
       - name: Mobile typecheck
         working-directory: prototype
         run: npm run typecheck
+      - name: Mobile web bundle
+        working-directory: prototype
+        run: npm run export:web
       - name: Secret pattern check
         shell: bash
         run: |

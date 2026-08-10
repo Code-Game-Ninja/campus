@@ -75,10 +75,31 @@ This command does not send email or push notifications. Never place the service-
 
 Copy `.env.example` to `.env` for local development. Real values must stay outside Git. The service-role key is backend-only and must never be shipped in the mobile app.
 
+## Full cloud verification
+
+Run read-only smoke first. For dedicated test accounts only, run mutation coverage after setting an explicit safety flag:
+
+```powershell
+$env:CAMPUSSPHERE_ALLOW_TEST_MUTATIONS = "1"
+$env:CAMPUSSPHERE_TEST_EVENT_ID = "<published-test-event-id>"
+pnpm verify:cloud
+```
+
+The runner covers posts, polls, comments, reactions, bookmarks, Team Finder applications and team chat, message idempotency/edit/delete/read/reactions/mute, private chat attachment upload/signing, follows, blocks, and optional event registration/reminder/bookmark lifecycle. It cancels or soft-deletes temporary rows where supported.
+
+Run read-only load checks only against non-production:
+
+```powershell
+$env:CAMPUSSPHERE_LOAD_TEST_ACK = "staging-only"
+pnpm load:cloud 100 10
+```
+
+See `docs/mvp_external_verification.md` for owner-run Realtime, provider, device, backup, and pilot checks.
+
 ## Implemented backend scope
 
-- Migrations `0001`–`0008` are cloud-applied.
-- Migrations `0009`–`0012` add privacy-aware search, rate limits, moderation, lifecycle/export, event-change fan-out, domain notifications, post media, restrictions, retention, stable cursor pagination, quiet hours, and connection cooldown. Apply them before cloud verification.
+- Migrations `0001`–`0012` are cloud-applied (owner-confirmed).
+- Migration `0013` adds transactional mobile profile, Team Finder, post/poll, social, notification/device, reminder, and chat preference mutations. Apply it before full cloud verification.
 - Student social, independent Team Finder, relationships, notifications, safety, consented analytics, and CampusSphere-owned chat are backend-owned.
 - Mobile profile/onboarding RPCs are in `0006_mobile_profile_rpc.sql`.
 - `E:\projects\ChitChat` is read-only reference material only. No ChitChat files, tables, project, or database are edited, imported, renamed, or reused.
@@ -93,7 +114,7 @@ pnpm check:contract
 Get-ChildItem scripts\*.mjs | ForEach-Object { node --check $_.FullName }
 ```
 
-After migrations `0009`–`0012` are applied, run `pnpm health:cloud`, obtain two student tokens with `pnpm get:test-token`, then run `pnpm smoke:cloud`. Run domain/reminder/notification workers only with backend service-role credentials.
+After migration `0013` is applied, run `pnpm health:cloud`, obtain two student tokens with `pnpm get:test-token`, then run `pnpm smoke:cloud` and `pnpm verify:cloud`. Run domain/reminder/notification workers only with backend service-role credentials.
 
 For local-only rehearsal, Docker and the Supabase CLI are still optional:
 

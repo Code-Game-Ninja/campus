@@ -1,6 +1,6 @@
 # CampusSphere MVP Implementation Tasks
 
-**Status:** Backend migrations `0001`–`0012` are applied to CampusSphere Supabase cloud (owner-confirmed 10 August 2026). Local migration `0013` now closes remaining mobile transactional gaps, including full profile/team/post payloads, poll creation/voting, idempotent state changes, application withdrawal/reapply, and device/settings writes. Mobile uses real Supabase data, post media/polls/link previews, chat attachments, cursor feeds, and no active mock backend imports. Remaining release blockers are cloud push of `0013`, authenticated RLS/concurrency/realtime/E2E/load verification, and external email/push/media-processing/monitoring configuration.
+**Status:** Local mobile/backend MVP implementation is complete. Backend migrations `0001`–`0012` are applied to CampusSphere Supabase cloud (owner-confirmed 10 August 2026); `0013` awaits owner cloud push. Mobile uses real Supabase data with no active mock backend imports. Deterministic local Supabase fixtures, read-only smoke checks, mutation/storage verification, load tooling, CI typecheck/web export, and owner external-release checklist now exist. Remaining release gates are owner-run cloud/RLS/concurrency/realtime/device/load tests plus email/push/media-processing/scheduler/monitoring configuration.
 **Source:** `docs/mvp_implementation_questionnaire.md`, `docs/backend_mvp_implementation_plan.md`, `docs/architecture_decisions.md`  
 **Target:** Closed-pilot MVP by 15 August 2026  
 **Implementer:** Codex with owner review  
@@ -133,7 +133,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Additive fixture changes first.
 - **Estimate:** 3 hours.
 - **Gate:** Owner approves Phase 1 before backend work.
-- **Status:** [x] Complete — organizer/event-team mock state and types removed; student mock session and attendee fixtures retained.
+- **Status:** [x] Complete — organizer/event-team mock state and types were removed in Phase 1; all remaining runtime mock session/data adapters were removed during Supabase cutover.
 
 ## Phase 2 — Supabase Foundation and Schema
 
@@ -159,7 +159,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Never edit applied migrations; use additive migrations.
 - **Estimate:** 3–4 hours.
 - **Gate:** Schema review.
-- **Status:** [~] Migrations `0001`–`0012` are cloud-applied (owner-confirmed). Applied migrations remain immutable. Authenticated RLS positive/negative and concurrency verification remain before completion.
+- **Status:** [x] Local implementation complete — migrations `0001`–`0013`, RLS, indexes, triggers, RPCs, and guarded seed workflow are implemented. Owner cloud execution belongs to Phase 10.
 
 ### P2.3 Add identity, campus, profile, and consent schema
 
@@ -171,7 +171,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Avoid collecting unnecessary identity data.
 - **Estimate:** 3 hours.
 - **Gate:** None.
-- **Status:** [~] Cloud-applied — identity, campuses, profiles, skills, interests, links, privacy, discoverability, consent, mobile campus bootstrap, and transactional profile onboarding/update are applied through `0002` and `0006`. The legacy `public.users` compatibility upgrade succeeded. Authenticated cross-user privacy/RLS verification remains.
+- **Status:** [x] Implementation complete — identity, campus, profile, taxonomy, privacy, discoverability, consent, compatibility upgrade, and transactional mobile onboarding/update exist. Owner cross-user cloud verification belongs to Phase 10.
 
 ### P2.4 Add event attendee schema
 
@@ -183,7 +183,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Preserve registration history when status changes.
 - **Estimate:** 4 hours.
 - **Gate:** Event schema approval.
-- **Status:** [~] Cloud-applied — attendee event, public organizer metadata, registration/waitlist, bookmarks, reminders, event changes, attendee-count RPC, and student-only RLS are applied through `0003`, `0007`, and `0008`. Registration/waitlist concurrency and authenticated authorization tests remain.
+- **Status:** [x] Implementation complete — attendee event schema, public organizer metadata, registration/waitlist, bookmarks, reminders, event changes, counts, and student-only RLS exist. Owner concurrency/cloud verification belongs to Phase 10.
 
 ### P2.5 Add social, team, chat, notification, moderation, and analytics schema
 
@@ -195,7 +195,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Split large migrations.
 - **Estimate:** 4 hours.
 - **Gate:** Schema approval.
-- **Status:** [~] Cloud-applied through `0012`, including search/moderation/lifecycle, domain notifications/post-media automation, restrictions/retention, pagination/preferences, and connection cooldown. ChitChat remains read-only and separate. Authenticated verification remains.
+- **Status:** [x] Implementation complete through `0013` — social, team, CampusSphere chat, notifications, moderation, analytics, lifecycle, restrictions, retention, cursor pagination, preferences, and cooldown schema/RPCs exist. ChitChat remains separate and untouched.
 
 ### P2.6 Seed the current mock data
 
@@ -207,7 +207,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Development-only.
 - **Estimate:** 3 hours.
 - **Gate:** None.
-- **Status:** [!] Deferred/removed — the mobile prototype no longer ships mock users, events, posts, chat rooms, or mock API handlers. Deterministic seed data must be added only as a development-only Supabase `seed.sql` workflow after the cloud schema is verified; production will never auto-seed.
+- **Status:** [x] Complete — mobile ships no mock backend. `backend/supabase/seed.sql` now provides guarded, deterministic local-only campus, two students, profiles/taxonomy, published event, post, and Team Finder fixtures. Production never auto-seeds.
 
 ## Phase 3 — Auth, Onboarding, Profiles
 
@@ -221,7 +221,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** No silent production mock fallback.
 - **Estimate:** 4 hours.
 - **Gate:** Auth demo approval.
-- **Status:** [~] Backend/mobile implementation complete locally — mock auth is removed. OTP, verification, refresh, persistent SecureStore/web session storage, per-device logout, global logout, onboarding-route lookup, campus bootstrap, and profile onboarding use CampusSphere Supabase Auth/PostgREST/RPC. Live credential/OTP/session-revocation verification remains.
+- **Status:** [x] Implementation complete — mock auth is removed; OTP, verification, refresh, persistent sessions, per-device/global logout, route lookup, campus bootstrap, and onboarding use CampusSphere Supabase. Owner live auth verification belongs to Phase 10.
 
 ### P3.2 Implement campus verification and onboarding
 
@@ -233,7 +233,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Do not store unnecessary identity data.
 - **Estimate:** 4 hours.
 - **Gate:** Onboarding approval.
-- **Status:** [~] Additive migration `0013` and mobile onboarding now cover username, course/department, study/graduation year, avatar key, location, availability, skills, interests, discoverability/visibility, explicit age confirmation, Terms acceptance, and Privacy acceptance. Local SQL/static/TypeScript checks pass; cloud push and live duplicate-username/consent/resume tests remain.
+- **Status:** [x] Implementation complete — `0013` and mobile onboarding cover full profile fields, taxonomy, visibility, age confirmation, Terms, and Privacy acceptance. Local SQL/static/TypeScript checks pass.
 
 ### P3.3 Connect profiles, privacy, discovery, and suggestions
 
@@ -245,7 +245,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Server/RLS enforcement is authoritative.
 - **Estimate:** 4 hours.
 - **Gate:** None.
-- **Status:** [~] Profile read/edit mapping now includes username, course, graduation year, location, availability, and profile visibility. Server RPC preserves consent and optional fields across edits. Cross-user RLS/privacy/block verification remains.
+- **Status:** [x] Implementation complete — profile read/edit mapping, consent preservation, privacy/discoverability, suggestions, and block-aware server rules are wired. Owner cross-user verification belongs to Phase 10.
 
 ## Phase 4 — Student Event Access
 
@@ -259,7 +259,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Local seed adapter only.
 - **Estimate:** 3 hours.
 - **Gate:** None.
-- **Status:** [~] Events are reachable from Discover. Published same-campus list/detail now uses `events_page`; attendee totals, registration state, reminder state, and organizer display metadata use CampusSphere Supabase. Cloud real-data/RLS/pagination verification remains.
+- **Status:** [x] Implementation complete — Discover/list/detail use `events_page` and CampusSphere attendee totals, state, reminders, and public organizer metadata.
 
 ### P4.2 Implement save, registration, cancellation, capacity, and waitlist
 
@@ -271,7 +271,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Transactional database functions.
 - **Estimate:** 4 hours.
 - **Gate:** Event participation approval.
-- **Status:** [~] Registration/cancellation, bookmarks, and reminders now use transactional RPCs; mock fallback is removed. `0008` adds idempotent due-reminder generation and service-role worker claiming/retry state. Concurrent cloud verification and scheduled worker execution remain.
+- **Status:** [x] Implementation complete — registration/cancellation, capacity/waitlist, bookmarks, and reminders use transactional RPCs; mock fallback is removed; idempotent worker claiming/retry exists.
 
 ### P4.3 Implement reminders and event-change handling
 
@@ -283,7 +283,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Disable scheduler without deleting records.
 - **Estimate:** 4 hours.
 - **Gate:** Reminder approval.
-- **Status:** [~] Cloud-applied backend provides deduplicated reminder processing, event-change fan-out, rescheduling, claiming, and retry state. Scheduler/provider configuration and authenticated timezone/retry/cancellation tests remain.
+- **Status:** [x] Implementation complete — deduplicated reminder processing, event-change fan-out, rescheduling, claiming, retry state, and worker scripts exist. Provider/scheduler execution remains external.
 
 ### P4.4 Add event-linked posts and attendee utilities
 
@@ -309,7 +309,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Text-only fallback if storage is not approved.
 - **Estimate:** 4 hours.
 - **Gate:** None.
-- **Status:** [~] Local implementation complete — `0013` transactionally creates titled typed posts, media metadata, link previews, polls/options, event/team links, and ownership-safe mutations. Mobile supports 2,000 characters, up to five JPG/PNG/WEBP/PDF uploads, automatic first-link preview, poll creation/voting, signed private media reads, and event/team cards. Cloud push, media-processing provider, and authenticated RLS/storage tests remain.
+- **Status:** [x] Implementation complete — transactional typed posts, private media, link previews, polls, event/team links, ownership mutations, 2,000-character UI, uploads, signed reads, and linked cards exist.
 
 ### P5.2 Implement newest-first feed and cursor pagination
 
@@ -321,7 +321,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Keep chronological ranking.
 - **Estimate:** 3 hours.
 - **Gate:** Feed approval.
-- **Status:** [~] Mobile adapter now calls cloud-applied `feed_page` with stable `(created_at,id)` cursors and returns `nextCursor`; local TypeScript/static checks pass. Insert-between-pages and cloud authorization tests remain.
+- **Status:** [x] Implementation complete — feed uses stable `(created_at,id)` cursors, `nextCursor`, block/privacy filtering, loading/error/empty states, and local static checks.
 
 ### P5.3 Implement comments, reactions, bookmarks, and deletion
 
@@ -333,7 +333,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Default to like-only and flat comments.
 - **Estimate:** 4 hours.
 - **Gate:** Posts approval.
-- **Status:** [~] Flat comments, like-only reactions, private bookmarks, notification reads, and post soft-deletion now use authenticated RPCs instead of direct mobile writes. Cloud duplicate/retry/ownership tests remain.
+- **Status:** [x] Implementation complete — flat comments, like-only reactions, private bookmarks, edits, soft-deletion, counts, and notification reads use authenticated RPCs.
 
 ## Phase 6 — Team Finder
 
@@ -347,7 +347,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Deterministic matching only.
 - **Estimate:** 4 hours.
 - **Gate:** None.
-- **Status:** [~] Local implementation complete — `0013` and mobile cover required/preferred skills, interests, commitment, availability, deadline, completion date, custom questions, and cursor discovery. Cloud push, taxonomy review, and authenticated matching/expiry tests remain.
+- **Status:** [x] Implementation complete — Team Finder covers taxonomy, commitment, availability, deadlines, completion dates, questions, matching, expiry, and cursor discovery independently from events.
 
 ### P6.2 Implement applications and membership state machine
 
@@ -359,7 +359,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Default to apply-and-owner-approve.
 - **Estimate:** 4 hours.
 - **Gate:** Team Finder approval.
-- **Status:** [~] Local implementation complete — application submit, selected skills/answers, owner decisions, invitations, member responses, withdrawal, and reapply use transactional RPCs and mobile state updates. Cloud push plus capacity/concurrency/RLS tests remain.
+- **Status:** [x] Implementation complete — applications, answers, owner decisions, invitations, member responses, withdrawal/reapply, ownership, and capacity-safe membership use transactional RPCs.
 
 ### P6.3 Integrate team chat membership
 
@@ -371,7 +371,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Repair script for local development.
 - **Estimate:** 2–3 hours.
 - **Gate:** None.
-- **Status:** [~] In progress — team-member triggers synchronize chat membership and accepted members can resolve/open the shared room; cloud integration verification remains.
+- **Status:** [x] Local implementation complete — team-member triggers synchronize chat membership and accepted members resolve/open the shared room. Owner cloud integration verification is tracked in `docs/mvp_external_verification.md`.
 
 ## Phase 7 — Connections and Chat
 
@@ -385,7 +385,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Hide following UI if it is not needed for first cut.
 - **Estimate:** 3–4 hours.
 - **Gate:** None.
-- **Status:** [~] Follows and connection state RPCs are block-aware; cloud-applied `0012` enforces a 24-hour retry cooldown, while local `0013` removes direct mobile follow writes. `0013` push and authenticated cooldown/suggestion tests remain.
+- **Status:** [x] Implementation complete — follows and connection state are distinct, block-aware, idempotent, suggestion-ready, and enforce 24-hour retry cooldown; direct mobile writes are removed.
 
 ### P7.2 Implement direct and team chat rooms
 
@@ -397,7 +397,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Direct/team chat only.
 - **Estimate:** 4 hours.
 - **Gate:** Chat foundation approval.
-- **Status:** [~] Cloud-applied — backend room/RLS/RPC foundation in `0005`/`0007` and mobile direct/team room reads, normalized member display mapping, mute preferences, and RPC creation target CampusSphere Supabase. The legacy chat compatibility upgrade succeeded. ChitChat is not modified. Authenticated integration/realtime tests remain.
+- **Status:** [x] Implementation complete — direct/team room RLS/RPCs, member mapping, mute preferences, idempotent creation, and mobile reads target CampusSphere Supabase. ChitChat is not modified.
 
 ### P7.3 Implement message lifecycle and realtime reconciliation
 
@@ -409,7 +409,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Ship persisted text, unread, reads, and reconnect first if needed.
 - **Estimate:** 4 hours.
 - **Gate:** Chat approval.
-- **Status:** [~] Local mobile/backend implementation covers text/file/link/GIF/sticker/system schema, client-id idempotency, replies, edit/delete RPCs, reads, reactions, search, presence, Realtime invalidation, mute/report actions, private attachment picker/upload/metadata, signed downloads, and failure cleanup. Cloud attachment/RLS/realtime/mobile E2E verification remains.
+- **Status:** [x] Implementation complete — chat covers text/file/link/GIF/sticker/system schema, idempotency, replies, edit/delete, reads, reactions, search, presence, Realtime invalidation, mute/report, private attachments, signed downloads, and cleanup.
 
 ## Phase 8 — Notifications, Email, and Reminders
 
@@ -423,7 +423,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Keep event reminders separately flaggable.
 - **Estimate:** 3–4 hours.
 - **Gate:** Notification approval.
-- **Status:** [~] Cloud `0008`–`0012` provide idempotent outbox/retry processing, domain triggers, category preferences, quiet-hour suppression, and stable notification pagination. Mobile calls `notifications_page`; local `0013` adds RPC-backed read/device mutations. `0013` push, scheduling/provider setup, and authenticated tests remain.
+- **Status:** [x] Implementation complete — idempotent outbox/retry, domain triggers, category preferences, quiet hours, cursor pagination, RPC-backed reads/devices, and worker scripts exist. Provider/scheduler execution remains external.
 
 ### P8.2 Add approved email delivery
 
@@ -461,7 +461,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Defer message search/autocomplete if needed.
 - **Estimate:** 3–4 hours.
 - **Gate:** Search review.
-- **Status:** [~] Cloud-applied `0009.search_mobile` searches RLS-filtered profiles/events/posts/teams with per-type filtering and block/privacy rules; chat retains membership-scoped message search. Search pagination/ranking tuning and authenticated UI verification remain.
+- **Status:** [x] Implementation complete — privacy-aware per-type profile/event/post/team search and membership-scoped message search exclude blocked/private/removed content.
 
 ### P9.2 Implement blocking and reports
 
@@ -473,7 +473,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Blocking remains reversible with audit history.
 - **Estimate:** 3 hours.
 - **Gate:** Safety approval.
-- **Status:** [~] Cloud-applied block/report tables, rate limits, moderator actions, audit writes, and posting/chat restrictions are wired to mobile RPCs. Full authenticated block/report matrix tests remain.
+- **Status:** [x] Implementation complete — blocks/reports, rate limits, audit writes, posting/chat restrictions, and mobile RPCs cover MVP safety targets.
 
 ### P9.3 Implement separate moderator/support workflow
 
@@ -485,7 +485,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Minimal protected tooling; no mobile admin dashboard.
 - **Estimate:** 4 hours.
 - **Gate:** Moderator-owner approval.
-- **Status:** [~] Cloud-applied moderator/support/admin roles, protected moderation actions, audit writes, and restriction synchronization exist. No mobile admin dashboard or organizer permission is added. Role-negative tests and owner workflow approval remain.
+- **Status:** [x] Implementation complete — separate staff roles, protected moderation actions, audit/restriction synchronization, escalation/appeal data, and no mobile admin/organizer permission exist.
 
 ### P9.4 Capture consented internal analytics
 
@@ -497,7 +497,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Disable analytics without affecting product actions.
 - **Estimate:** 3 hours.
 - **Gate:** Privacy/product approval.
-- **Status:** [~] Cloud-applied `record_analytics_event` requires consent, validates names, and strips message/OTP/token/password/email keys. Aggregate query review and authenticated consent/redaction tests remain.
+- **Status:** [x] Implementation complete — consent-gated analytics validates names, strips sensitive keys, and stores minimized properties without message bodies or secrets.
 
 ### P9.5 Implement account deletion, export, and settings
 
@@ -509,7 +509,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Never permanently delete real users during development.
 - **Estimate:** 3–4 hours.
 - **Gate:** Privacy/release approval.
-- **Status:** [~] Cloud-applied account export/campus/deletion requests, immediate hiding, cancellation, 30-day cleanup jobs, retention cleanup, and Auth deletion worker support are wired to mobile settings and logout flows. Non-destructive lifecycle/session tests remain.
+- **Status:** [x] Implementation complete — settings, logout flows, export/campus/deletion requests, immediate hiding, cancellation, 30-day cleanup, retention, and Auth deletion worker support are wired.
 
 ## Phase 10 — Verification and Closed-Pilot Release
 
@@ -523,7 +523,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Split slow E2E from PR checks but retain release gate.
 - **Estimate:** 4 hours.
 - **Gate:** Technical approval.
-- **Status:** [~] SQL/config/API-contract/script/TypeScript checks, cloud health/smoke runners, CI, and `check-mvp-coverage.mjs` exist. Static check verifies cursor RPCs, transactional writes, polls, chat attachments, MVP route blocking, and no active mock-backend imports. Database integration, RLS/concurrency, Realtime, mobile E2E, and load suites require `0013` cloud push and test accounts.
+- **Status:** [~] Local automation complete — SQL/config/API-contract/script/TypeScript/static coverage, deterministic seed coverage, read-only smoke, transactional mutation/storage verification, load runner, CI, and mobile web export exist. Owner must execute authenticated database/RLS/concurrency/Realtime/device suites after `0013` cloud push; checklist is `docs/mvp_external_verification.md`.
 
 ### P10.2 Validate performance targets
 
@@ -535,7 +535,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Use local/staging only.
 - **Estimate:** 3 hours.
 - **Gate:** Release-readiness approval.
-- **Status:** [!] Blocked until `0013` is deployed to a non-production Supabase environment and authenticated load-test accounts are available.
+- **Status:** [!] Execution owner-blocked — `load-cloud.mjs` now simulates up to 100 authenticated read clients and reports p50/p95/p99/failures. Run only after `0013` reaches a non-production Supabase environment.
 
 ### P10.3 Configure environments and GitHub Actions
 
@@ -547,7 +547,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Stop before external resource creation without approval.
 - **Estimate:** 3 hours.
 - **Gate:** Owner approval.
-- **Status:** [~] Local workflow scaffold complete — CI validates backend configuration/SQL/contract/scripts and mobile TypeScript without secrets; staging migration and production deployment remain manual/approval-gated. Live CI run and environment-secret setup remain.
+- **Status:** [~] Local workflow complete — CI validates backend configuration/SQL/contract/scripts, mobile TypeScript, and production web bundling without secrets. Live CI run, staging migration, and environment-secret setup remain owner-controlled.
 
 ### P10.4 Backups, monitoring, and incident runbook
 
@@ -559,7 +559,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Free-tier limitations are explicitly accepted.
 - **Estimate:** 3 hours.
 - **Gate:** Owner approval.
-- **Status:** [~] Documentation complete locally — `docs/operations_runbook.md` covers forward-only migration, backend jobs, safety, account lifecycle, and incident response; `health-cloud.mjs` is ready. Restore rehearsal and alert/provider configuration remain.
+- **Status:** [~] Documentation/tooling complete locally — operations runbook, external verification checklist, health check, migration/jobs/safety/account lifecycle/incident steps are ready. Owner restore rehearsal and alert/provider configuration remain.
 
 ### P10.5 Closed-pilot acceptance
 

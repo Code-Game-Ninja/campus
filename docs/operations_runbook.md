@@ -24,6 +24,12 @@ node scripts/process-notifications.mjs 50
 
 Jobs are idempotent. Retry failed delivery through outbox claim/complete RPCs. Do not run production load tests.
 
+## Release verification
+
+Use two dedicated student accounts. Run `pnpm smoke:cloud` before `pnpm verify:cloud`. Mutation verification requires `CAMPUSSPHERE_ALLOW_TEST_MUTATIONS=1` and must not use real student accounts. Load testing requires `CAMPUSSPHERE_LOAD_TEST_ACK=staging-only` and must never target production.
+
+Full owner-run checklist: `docs/mvp_external_verification.md`.
+
 ## Safety
 
 Reports enter `public.reports`; moderator action uses `apply_moderation_action`. Actions write `moderation_actions` and `audit_logs`. Student clients cannot read moderator tables.

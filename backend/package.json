@@ -15,6 +15,8 @@
     "process:notifications": "node scripts/process-notifications.mjs",
     "health:cloud": "node scripts/health-cloud.mjs",
     "smoke:cloud": "node scripts/smoke-cloud.mjs",
+    "verify:cloud": "node scripts/verify-cloud-mvp.mjs",
+    "load:cloud": "node scripts/load-cloud.mjs",
     "typecheck": "tsc --noEmit",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",

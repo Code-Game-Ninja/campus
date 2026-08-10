@@ -9,6 +9,9 @@ const api = readFileSync(join(prototype, 'src', 'lib', 'api.ts'), 'utf8');
 const navigation = readFileSync(join(prototype, 'src', 'lib', 'navigation.ts'), 'utf8');
 const composer = readFileSync(join(prototype, 'app', 'compose', 'index.tsx'), 'utf8');
 const conversation = readFileSync(join(prototype, 'app', 'chat', '[id].tsx'), 'utf8');
+const seed = readFileSync(join(backend, 'supabase', 'seed.sql'), 'utf8');
+const cloudVerification = readFileSync(join(backend, 'scripts', 'verify-cloud-mvp.mjs'), 'utf8');
+const cloudLoad = readFileSync(join(backend, 'scripts', 'load-cloud.mjs'), 'utf8');
 
 const requiredFunctions = [
   'update_my_profile_mobile', 'create_team_request_mobile_v2', 'create_post_mobile',
@@ -37,6 +40,16 @@ for (const marker of ['pickChatAttachment', 'uploadingAttachment', 'getChatAttac
 }
 for (const marker of ['pickPostMedia', 'uploadPostMedia', 'pollEnabled', '2000']) {
   if (!composer.includes(marker)) throw new Error(`Post format UI missing: ${marker}`);
+}
+
+for (const marker of ['student-a@campussphere.local', 'CampusSphere MVP Demo Event', 'Build a campus accessibility audit']) {
+  if (!seed.includes(marker)) throw new Error(`Deterministic local seed missing: ${marker}`);
+}
+for (const marker of ['create_post_mobile', 'create_team_request_mobile_v2', 'ensure_team_conversation', 'chat-attachments', 'set_block_mobile']) {
+  if (!cloudVerification.includes(marker)) throw new Error(`Cloud mutation verification missing: ${marker}`);
+}
+for (const marker of ['feed_page', 'events_page', 'team_requests_page', 'notifications_page', 'p95Ms']) {
+  if (!cloudLoad.includes(marker)) throw new Error(`Cloud load verification missing: ${marker}`);
 }
 
 for (const route of ['/assistant', '/discover/clubs', '/discover/listings', '/discover/notes', '/discover/opportunities']) {
