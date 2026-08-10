@@ -8,6 +8,7 @@
     "check:config": "node scripts/check-config.mjs",
     "check:sql": "node scripts/check-sql.mjs",
     "check:contract": "node scripts/check-contract.mjs",
+    "check:mvp": "node scripts/check-mvp-coverage.mjs",
     "get:test-token": "node scripts/get-test-token.mjs",
     "process:reminders": "node scripts/process-reminders.mjs",
     "process:domain-jobs": "node scripts/process-domain-jobs.mjs",

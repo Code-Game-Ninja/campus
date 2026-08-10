@@ -9,6 +9,7 @@ export interface ApiEvent {
   status: 'draft' | 'published' | 'cancelled' | 'completed'; createdAt: string; updatedAt: string;
   userRegistrationStatus?: 'registered' | 'waitlisted' | 'cancelled' | null;
   reminderEnabled?: boolean;
+  viewerBookmarked?: boolean;
 }
 
 

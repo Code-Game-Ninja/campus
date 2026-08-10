@@ -32,6 +32,9 @@ export default function ProfileSetup() {
   const [skills, setSkills] = useState<string[]>([]);
   const [interests, setInterests] = useState<string[]>([]);
   const [discoverable, setDiscoverable] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -74,6 +77,10 @@ export default function ProfileSetup() {
       return;
     }
 
+    if (!ageConfirmed || !termsAccepted || !privacyAccepted) {
+      setErrors({ consent: 'Confirm age, Terms, and Privacy before continuing.' });
+      return;
+    }
     setSubmitting(true);
     try {
       const saved = await apiPatch<ProfileView>('/profiles/me', {
@@ -85,6 +92,9 @@ export default function ProfileSetup() {
         interests,
         links: linkUrl.trim() ? [{ label: linkLabel.trim() || 'Profile link', url: linkUrl.trim() }] : [],
         discoverable,
+        ageConfirmed,
+        termsAccepted,
+        privacyAccepted,
       });
       queryClient.setQueryData(apiQueryKey('profile', saved.userId), saved);
       await queryClient.invalidateQueries({ queryKey: apiQueryKey('recommendations') });
@@ -130,6 +140,12 @@ export default function ProfileSetup() {
         <View style={{ backgroundColor: p.surface, borderRadius: 16, borderWidth: 1, borderColor: p.line, paddingHorizontal: 14, marginTop: 24 }}>
           <ToggleRow title="Let people discover me" detail="Off by default. Team Finder uses only the skills and interests you selected above." value={discoverable} onValueChange={setDiscoverable} />
         </View>
+        <View style={{ backgroundColor: p.surface, borderRadius: 16, borderWidth: 1, borderColor: p.line, paddingHorizontal: 14, marginTop: 12 }}>
+          <ToggleRow title="I confirm I meet the minimum age" detail="Required for CampusSphere access." value={ageConfirmed} onValueChange={setAgeConfirmed} />
+          <ToggleRow title="I accept Terms of Service" detail="Required to create an account." value={termsAccepted} onValueChange={setTermsAccepted} />
+          <ToggleRow title="I accept Privacy Policy" detail="Required to use social, Team Finder, and chat features." value={privacyAccepted} onValueChange={setPrivacyAccepted} />
+        </View>
+        {errors.consent ? <Text style={{ color: p.danger, fontSize: 12, marginTop: 8 }}>{errors.consent}</Text> : null}
       </View> : null}
     </Animated.View>
     <View style={{ marginTop: 34, gap: 10 }}>

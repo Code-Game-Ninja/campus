@@ -24,6 +24,7 @@ jobs:
           node scripts/check-config.mjs
           node scripts/check-sql.mjs
           node scripts/check-contract.mjs
+          node scripts/check-mvp-coverage.mjs
           node --check scripts/get-test-token.mjs
           node --check scripts/process-reminders.mjs
           node --check scripts/process-domain-jobs.mjs

@@ -4,6 +4,7 @@ const UNDER_CONSTRUCTION_ROUTES: ReadonlyArray<{ prefix: string; feature: string
   { prefix: '/assistant', feature: 'Campus Assistant' },
   { prefix: '/discover/clubs', feature: 'Clubs' },
   { prefix: '/discover/listings', feature: 'Marketplace and Lost & Found' },
+  { prefix: '/discover/notes', feature: 'Notes and Study Resources' },
   { prefix: '/discover/opportunities', feature: 'Opportunities' },
 ];
 

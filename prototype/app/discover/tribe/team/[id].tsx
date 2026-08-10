@@ -16,7 +16,7 @@ import {
   StateView,
   TopBar,
 } from '@/components/ui';
-import { apiPatch, apiPost } from '@/lib/api';
+import { apiDelete, apiPatch, apiPost } from '@/lib/api';
 import { apiQueryKey, useApiMutation, useApiQuery } from '@/lib/api-hooks';
 import { queryClient } from '@/lib/query';
 import type { ChatRoom } from '@/lib/chat';
@@ -194,6 +194,26 @@ export default function TeamDetail() {
     }
   };
 
+  const withdrawApplication = async (): Promise<void> => {
+    if (!team?.myApplicationId) return;
+    setBusyApplicationId(team.myApplicationId);
+    try {
+      await apiDelete<TeamApplication>(`/team-requests/${id}/applications/${team.myApplicationId}`);
+      queryClient.setQueryData<TeamRequest>(apiQueryKey('team-request', id), (current) => current ? {
+        ...current,
+        myApplicationId: null,
+        myApplicationState: null,
+        myApplicationKind: null,
+      } : current);
+      void queryClient.invalidateQueries({ queryKey: ['api', 'team-requests'] });
+      toast({ type: 'success', message: 'Application withdrawn. You can apply again while request is open.' });
+    } catch (error) {
+      toast({ type: 'error', message: (error as Error).message });
+    } finally {
+      setBusyApplicationId(null);
+    }
+  };
+
   if (teamQuery.isLoading) {
     return <Screen><StateView icon="hourglass-outline" title="Loading team request" detail="Fetching collaboration details…" /></Screen>;
   }
@@ -207,6 +227,7 @@ export default function TeamDetail() {
   const pending = applications.data?.filter((application) => application.state === 'pending') ?? [];
   const accepted = applications.data?.filter((application) => application.state === 'accepted') ?? [];
   const declined = applications.data?.filter((application) => application.state === 'declined') ?? [];
+  const archived = applications.data?.filter((application) => application.state === 'withdrawn' || application.state === 'cancelled') ?? [];
 
   return (
     <Screen>
@@ -284,6 +305,12 @@ export default function TeamDetail() {
                       {declined.map((application) => <ApplicationCard key={application.id} application={application} ink={p.ink} />)}
                     </>
                   ) : null}
+                  {archived.length ? (
+                    <>
+                      <SectionHeader title={`Withdrawn or cancelled (${archived.length})`} />
+                      {archived.map((application) => <ApplicationCard key={application.id} application={application} ink={p.ink} />)}
+                    </>
+                  ) : null}
                 </>
               )}
             </View>
@@ -302,7 +329,11 @@ export default function TeamDetail() {
               </View>
             </Card>
           ) : team.myApplicationState === 'pending' ? (
-            <StateView icon="time-outline" title="Application pending" detail="Team owner has not decided your application yet." />
+            <Card style={{ marginTop: 16, gap: 12 }}>
+              <Badge label="Application pending" tone="warning" />
+              <Body muted>Team owner has not decided your application yet.</Body>
+              <Button variant="ghost" label="Withdraw application" loading={Boolean(busyApplicationId)} onPress={() => void withdrawApplication()} />
+            </Card>
           ) : team.status === 'open' ? (
             <Card style={{ marginTop: 16, gap: 12 }}>
               <Text style={{ color: p.ink, fontSize: 17, fontWeight: '800' }}>{team.applicationPrompt ?? 'Why are you a good fit?'}</Text>
@@ -337,7 +368,7 @@ function ApplicationCard({
       <Text style={{ color: ink, fontWeight: '800', fontSize: 16 }}>{name}</Text>
       <Body muted style={{ marginTop: 6 }}>{application.kind === 'invitation' ? 'Invited by team owner.' : application.responseText ?? 'No response provided.'}</Body>
       <View style={{ marginTop: 10 }}>
-        <Badge label={application.state} tone={application.state === 'accepted' ? 'success' : application.state === 'pending' ? 'warning' : 'danger'} />
+        <Badge label={application.state} tone={application.state === 'accepted' ? 'success' : application.state === 'pending' ? 'warning' : application.state === 'withdrawn' || application.state === 'cancelled' ? 'neutral' : 'danger'} />
       </View>
       {application.state === 'pending' && onDecision ? (
         <View style={{ flexDirection: 'row', gap: 9, marginTop: 12 }}>

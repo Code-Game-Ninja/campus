@@ -67,25 +67,77 @@ export async function supabaseRequest<T>(
     method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
     accessToken?: string | null;
     body?: unknown;
+    rawBody?: Blob;
     headers?: Record<string, string>;
   } = {},
 ): Promise<T> {
   assertSupabaseConfigured();
   const prefix = service === 'auth' ? '/auth/v1' : service === 'storage' ? '/storage/v1' : '/rest/v1';
+  const hasRawBody = options.rawBody !== undefined;
   const response = await fetch(`${SUPABASE_URL}${prefix}/${path.replace(/^\/+/, '')}`, {
     method: options.method ?? 'GET',
     headers: {
       apikey: SUPABASE_ANON_KEY,
       Authorization: `Bearer ${options.accessToken || SUPABASE_ANON_KEY}`,
       Accept: 'application/json',
-      ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(options.body === undefined || hasRawBody ? {} : { 'Content-Type': 'application/json' }),
       ...options.headers,
     },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body: hasRawBody ? options.rawBody : options.body === undefined ? undefined : JSON.stringify(options.body),
   });
   const payload = await parseResponse(response);
   if (!response.ok) throw errorFrom(response, payload);
   return payload as T;
+}
+
+function storageObjectPath(bucket: string, objectPath: string): string {
+  const encodedBucket = encodeURIComponent(bucket);
+  const encodedPath = objectPath.split('/').map((part) => encodeURIComponent(part)).join('/');
+  return `${encodedBucket}/${encodedPath}`;
+}
+
+export async function uploadStorageObject(
+  bucket: string,
+  objectPath: string,
+  content: Blob,
+  mimeType: string,
+  accessToken: string,
+): Promise<void> {
+  await supabaseRequest('storage', `object/${storageObjectPath(bucket, objectPath)}`, {
+    method: 'POST',
+    accessToken,
+    rawBody: content,
+    headers: { 'Content-Type': mimeType, 'x-upsert': 'false' },
+  });
+}
+
+export async function deleteStorageObject(
+  bucket: string,
+  objectPath: string,
+  accessToken: string,
+): Promise<void> {
+  await supabaseRequest('storage', `object/${storageObjectPath(bucket, objectPath)}`, {
+    method: 'DELETE',
+    accessToken,
+  });
+}
+
+export async function createStorageSignedUrl(
+  bucket: string,
+  objectPath: string,
+  accessToken: string,
+  expiresIn = 60,
+): Promise<string> {
+  const result = await supabaseRequest<{ signedURL?: string; signedUrl?: string }>(
+    'storage',
+    `object/sign/${storageObjectPath(bucket, objectPath)}`,
+    { method: 'POST', accessToken, body: { expiresIn } },
+  );
+  const signedPath = result.signedURL ?? result.signedUrl;
+  if (!signedPath) throw new SupabaseHttpError('Could not create attachment download link.', 500, 'SIGNED_URL_MISSING');
+  if (signedPath.startsWith('http')) return signedPath;
+  if (signedPath.startsWith('/storage/v1/')) return `${SUPABASE_URL}${signedPath}`;
+  return `${SUPABASE_URL}/storage/v1/${signedPath.replace(/^\/+/, '')}`;
 }
 
 export function postgrestQuery(params: Record<string, string | number | boolean | undefined | null>): string {

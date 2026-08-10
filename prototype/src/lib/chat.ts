@@ -23,6 +23,7 @@ export interface ChatRoom {
   lastMessagePreview?: string | null;
   lastMessageTime?: string | null;
   unreadCount?: number;
+  muted?: boolean;
   members: ChatMember[];
 }
 export interface ChatMessage {
@@ -36,6 +37,7 @@ export interface ChatMessage {
   linkUrl?: string | null;
   replyToMessageId?: string | null;
   metadata?: Record<string, unknown>;
+  attachments?: ChatAttachment[];
   status?: 'visible' | 'deleted' | 'removed';
   contentUnavailable?: boolean;
   createdAt: string;

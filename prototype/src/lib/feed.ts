@@ -1,6 +1,9 @@
 import type { FeedTab, Post, Scope } from '@/types';
 
 export type ReactionKind = 'like' | 'celebrate' | 'insightful' | 'support';
+export interface PostPollOption { id: string; label: string; votes: number; viewerSelected: boolean }
+export interface PostPoll { postId: string; allowsMultiple: boolean; closesAt: string | null; options: PostPollOption[] }
+export interface PostMediaItem { url: string; type: 'image' | 'document'; name: string | null }
 export interface ApiPost {
   id: string;
   scope: Scope;
@@ -19,7 +22,11 @@ export interface ApiPost {
   viewerReaction?: ReactionKind | null;
   viewerBookmarked?: boolean;
   mediaUrls?: string[];
+  mediaItems?: PostMediaItem[];
+  linkPreview?: { url: string; title: string; description: string | null } | null;
+  poll?: PostPoll | null;
   eventId?: string | null;
+  teamRequestId?: string | null;
   recruitment?: boolean;
 }
 
@@ -89,7 +96,11 @@ export function mapPost(post: ApiPost, campus: string): Post {
     official: post.authorMode === 'official',
     why: post.whyThis.join(' · ') || 'Recommended from your current feed.',
     media: post.mediaUrls,
+    mediaItems: post.mediaItems,
+    linkPreview: post.linkPreview ?? undefined,
+    poll: post.poll ?? undefined,
     eventId: post.eventId ?? undefined,
+    teamRequestId: post.teamRequestId ?? undefined,
     recruitment: post.recruitment ?? false,
     version: post.version,
   };

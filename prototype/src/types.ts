@@ -27,6 +27,10 @@ export type Post = {
   reacted?: boolean; saved?: boolean; official?: boolean; why: string;
   authorId?: string; authorType?: 'person' | 'club';
   media?: string[]; eventId?: string; recruitment?: boolean;
+  mediaItems?: Array<{ url: string; type: 'image' | 'document'; name: string | null }>;
+  linkPreview?: { url: string; title: string; description: string | null };
+  poll?: { postId: string; allowsMultiple: boolean; closesAt: string | null; options: Array<{ id: string; label: string; votes: number; viewerSelected: boolean }> };
+  teamRequestId?: string;
   version?: number;
 };
 
