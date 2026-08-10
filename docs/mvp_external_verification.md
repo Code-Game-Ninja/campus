@@ -10,7 +10,7 @@ supabase db lint
 supabase db push
 ```
 
-Confirm migration `0013_mobile_transactional_mutations.sql` appears in remote migration history.
+Confirm migrations `0013_mobile_transactional_mutations.sql`, `0014_auth_legacy_display_name.sql`, and `0015_normalize_user_status.sql` appear in remote migration history.
 
 ## 2. Obtain dedicated student tokens
 

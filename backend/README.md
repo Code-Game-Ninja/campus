@@ -99,7 +99,7 @@ See `docs/mvp_external_verification.md` for owner-run Realtime, provider, device
 ## Implemented backend scope
 
 - Migrations `0001`–`0012` are cloud-applied (owner-confirmed).
-- Migration `0013` adds transactional mobile profile, Team Finder, post/poll, social, notification/device, reminder, and chat preference mutations. Apply it before full cloud verification.
+- Migration `0013` adds transactional mobile profile, Team Finder, post/poll, social, notification/device, reminder, and chat preference mutations. Migrations `0014`–`0015` normalize legacy cloud `public.users` display-name and account-status constraints so Supabase Auth can create new students safely. Apply all three before full cloud verification.
 - Student social, independent Team Finder, relationships, notifications, safety, consented analytics, and CampusSphere-owned chat are backend-owned.
 - Mobile profile/onboarding RPCs are in `0006_mobile_profile_rpc.sql`.
 - `E:\projects\ChitChat` is read-only reference material only. No ChitChat files, tables, project, or database are edited, imported, renamed, or reused.
@@ -114,7 +114,7 @@ pnpm check:contract
 Get-ChildItem scripts\*.mjs | ForEach-Object { node --check $_.FullName }
 ```
 
-After migration `0013` is applied, run `pnpm health:cloud`, obtain two student tokens with `pnpm get:test-token`, then run `pnpm smoke:cloud` and `pnpm verify:cloud`. Run domain/reminder/notification workers only with backend service-role credentials.
+After migrations `0013`–`0015` are applied, run `pnpm health:cloud`, obtain two student tokens with `pnpm get:test-token`, then run `pnpm smoke:cloud` and `pnpm verify:cloud`. Run domain/reminder/notification workers only with backend service-role credentials.
 
 For local-only rehearsal, Docker and the Supabase CLI are still optional:
 

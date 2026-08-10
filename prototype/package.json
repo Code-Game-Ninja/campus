@@ -9,6 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "export:web": "expo export --platform web",
+    "verify:android-bundle": "node scripts/verify-android-bundle.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

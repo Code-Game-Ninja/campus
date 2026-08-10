@@ -1,6 +1,6 @@
 # CampusSphere MVP Implementation Tasks
 
-**Status:** Local mobile/backend MVP implementation is complete. Backend migrations `0001`–`0012` are applied to CampusSphere Supabase cloud (owner-confirmed 10 August 2026); `0013` awaits owner cloud push. Mobile uses real Supabase data with no active mock backend imports. Deterministic local Supabase fixtures, read-only smoke checks, mutation/storage verification, load tooling, CI typecheck/web export, and owner external-release checklist now exist. Remaining release gates are owner-run cloud/RLS/concurrency/realtime/device/load tests plus email/push/media-processing/scheduler/monitoring configuration.
+**Status:** Local mobile/backend MVP implementation is complete. Backend migrations `0001`–`0012` are applied to CampusSphere Supabase cloud (owner-confirmed 10 August 2026); `0013` plus legacy Auth compatibility migrations `0014`–`0015` require remote confirmation. Mobile uses real Supabase data with no active mock backend imports. Deterministic local Supabase fixtures, read-only smoke checks, mutation/storage verification, load tooling, CI typecheck/web export, and owner external-release checklist now exist. Remaining release gates are owner-run cloud/RLS/concurrency/realtime/device/load tests plus email/push/media-processing/scheduler/monitoring configuration.
 **Source:** `docs/mvp_implementation_questionnaire.md`, `docs/backend_mvp_implementation_plan.md`, `docs/architecture_decisions.md`  
 **Target:** Closed-pilot MVP by 15 August 2026  
 **Implementer:** Codex with owner review  
@@ -221,7 +221,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** No silent production mock fallback.
 - **Estimate:** 4 hours.
 - **Gate:** Auth demo approval.
-- **Status:** [x] Implementation complete — mock auth is removed; OTP, verification, refresh, persistent sessions, per-device/global logout, route lookup, campus bootstrap, and onboarding use CampusSphere Supabase. Owner live auth verification belongs to Phase 10.
+- **Status:** [x] Implementation complete — mock auth is removed; OTP, six-digit verification, Supabase-backed resend with a 60-second cooldown, refresh, persistent sessions, per-device/global logout, route lookup, campus bootstrap, and onboarding use CampusSphere Supabase. Owner live auth verification belongs to Phase 10.
 
 ### P3.2 Implement campus verification and onboarding
 
@@ -523,7 +523,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Split slow E2E from PR checks but retain release gate.
 - **Estimate:** 4 hours.
 - **Gate:** Technical approval.
-- **Status:** [~] Local automation complete — SQL/config/API-contract/script/TypeScript/static coverage, deterministic seed coverage, read-only smoke, transactional mutation/storage verification, load runner, CI, and mobile web export exist. Owner must execute authenticated database/RLS/concurrency/Realtime/device suites after `0013` cloud push; checklist is `docs/mvp_external_verification.md`.
+- **Status:** [~] Local automation complete — SQL/config/API-contract/script/TypeScript/static coverage, deterministic seed coverage, read-only smoke, transactional mutation/storage verification, load runner, CI, web export, and Android Hermes regression bundling exist. Babel regression check prevents React Native readonly `Event.NONE` constants from being rewritten into crashing assignments. Owner must execute authenticated database/RLS/concurrency/Realtime/device suites after `0013` cloud push; checklist is `docs/mvp_external_verification.md`.
 
 ### P10.2 Validate performance targets
 

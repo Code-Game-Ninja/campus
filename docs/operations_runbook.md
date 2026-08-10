@@ -12,6 +12,21 @@ supabase db push
 
 Never edit an applied migration. Add a higher-numbered migration.
 
+## Supabase email OTP (not magic link)
+
+CampusSphere mobile already requests and verifies numeric email OTPs through Auth (`type: email`). Supabase email templates decide whether the message displays a link or code.
+
+Open [CampusSphere Auth email templates](https://supabase.com/dashboard/project/grcvstojrtaafpwtzojf/auth/templates), choose **Magic Link**, and replace link markup with the OTP token:
+
+```html
+<h2>CampusSphere verification code</h2>
+<p>Enter this code in CampusSphere:</p>
+<p style="font-size: 32px; letter-spacing: 8px; font-weight: 700;">{{ .Token }}</p>
+<p>This code expires soon. If you did not request it, ignore this email.</p>
+```
+
+Set subject to `CampusSphere verification code`. Do not include `{{ .ConfirmationURL }}`. Save template, then request a fresh code; old emails remain links.
+
 ## Jobs
 
 Use backend-only service-role credentials. Never put them in mobile/public variables.
