@@ -20,6 +20,7 @@ Mobile requests use Supabase Auth access tokens and PostgREST/RPC. Student token
 | Auth/profile | OTP, session refresh/logout, campus bootstrap, own profile update, own export/deletion request/cancel |
 | Events | Read published same-campus events, organizer display metadata, bookmark, register/cancel, reminder |
 | Posts | Read visible feed, create/update/delete own post, comments, like, bookmark, private image/PDF media, first-link preview metadata, event/team cards, poll creation and voting |
+| Study resources | Browse same-campus approved notes, upload approved document types, signed download, own edit/delete, bookmark, and report |
 | Team Finder | Create/update/close own request, discover open requests, apply, withdraw/reapply, invite, accept/reject, membership, team chat |
 | Connections | Request, accept/decline/cancel/remove, follow/unfollow, block/unblock |
 | Chat | Accepted direct/team rooms, member messages, read state, reactions, edit/delete limits, private 20 MB attachments, signed downloads |

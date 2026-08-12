@@ -13,10 +13,8 @@ function openReference(referenceType: string | null, referenceId: string | null)
   const routes: Record<string, string> = {
     post: `/post/${referenceId}`,
     event: `/discover/events/${referenceId}`,
-    club: `/discover/clubs/${referenceId}`,
     resource: `/discover/notes/${referenceId}`,
-    listing: `/discover/listings/${referenceId}`,
-    opportunity: `/discover/opportunities`,
+    team_request: `/discover/tribe/team/${referenceId}`,
   };
   const route = referenceType ? routes[referenceType] : undefined;
   if (route) router.push(route as never);

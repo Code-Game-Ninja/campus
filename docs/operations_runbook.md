@@ -12,6 +12,18 @@ supabase db push
 
 Never edit an applied migration. Add a higher-numbered migration.
 
+### Indian institution catalogue
+
+After applying `0016_indian_campus_catalog.sql`, populate `public.campuses` from the two approved open APIs:
+
+```powershell
+$env:CAMPUSSPHERE_SUPABASE_URL = "https://<project-ref>.supabase.co"
+$env:CAMPUSSPHERE_SUPABASE_SERVICE_ROLE_KEY = "<service-role-key>"
+pnpm sync:universities
+```
+
+The sync merges duplicate names/locations, upserts in batches, and keeps existing records if one provider is unavailable. Service-role credentials remain backend-only. Run `pnpm check:university-sync` for a write-free fixture check.
+
 ## Supabase email OTP (not magic link)
 
 CampusSphere mobile already requests and verifies numeric email OTPs through Auth (`type: email`). Supabase email templates decide whether the message displays a link or code.
@@ -26,6 +38,14 @@ Open [CampusSphere Auth email templates](https://supabase.com/dashboard/project/
 ```
 
 Set subject to `CampusSphere verification code`. Do not include `{{ .ConfirmationURL }}`. Save template, then request a fresh code; old emails remain links.
+
+### Custom SMTP delivery
+
+Disable or delete **Authentication > Auth Hooks > Send Email** before enabling SMTP; an email hook replaces SMTP and templates. In **Authentication > Emails**, enable custom SMTP and enter provider host, port (normally `587`), username, password or app password, sender email, and sender name (`CampusSphere`). Keep credentials in Supabase settings only.
+
+For Gmail testing: `smtp.gmail.com`, port `587`, full Gmail username, and Google App Password with 2-Step Verification. Use verified transactional SMTP for production.
+
+Use `{{ .Token }}` in the **Magic Link** template for the six-digit code and remove `{{ .ConfirmationURL }}`. Mobile initial-send and resend already call Supabase Auth `/otp`; no app code or database migration changes are needed. Request a fresh code after saving SMTP settings.
 
 ## Jobs
 

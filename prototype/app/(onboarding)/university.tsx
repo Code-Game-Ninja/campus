@@ -70,9 +70,9 @@ export default function UniversityPicker() {
             marginTop: 20,
           }}
         >
-          Find your university
+          Find your college or university
         </Text>
-        <Text style={{ color: p.muted, fontSize: 15, lineHeight: 22, marginTop: 8 }}>Search universities across India.</Text>
+        <Text style={{ color: p.muted, fontSize: 15, lineHeight: 22, marginTop: 8 }}>Search colleges and universities across India.</Text>
 
         <View style={{ marginTop: 18 }}>
           <SearchField
@@ -113,7 +113,7 @@ export default function UniversityPicker() {
               detail={
                 search
                   ? `Nothing found for "${search}". Try a shorter search.`
-                  : 'Start typing to search for your university.'
+                  : 'Start typing to search for your college or university.'
               }
             />
           </View>
@@ -218,7 +218,6 @@ function UniversityRow({
     </Pressable>
   );
 }
-
 
 
 

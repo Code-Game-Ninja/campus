@@ -10,6 +10,7 @@ import {
 export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'supabase://campussphere').replace(/\/+$/, '');
 const CHAT_ATTACHMENTS_BUCKET = 'chat-attachments';
 const POST_MEDIA_BUCKET = 'post-media';
+const RESOURCE_BUCKET = 'study-resources';
 
 let accessToken: string | null = null;
 let unauthorizedHandler: (() => Promise<boolean>) | null = null;
@@ -63,10 +64,17 @@ async function rpc<T>(name: string, body: Record<string, unknown>, token: string
   return supabaseRequest<T>('rest', `rpc/${name}`, { method: 'POST', accessToken: token, body });
 }
 
+async function visibleProfileLabels(userIds: string[], token: string): Promise<Map<string, any>> {
+  const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
+  if (!uniqueIds.length) return new Map();
+  const rows = await rpc<any[]>('visible_profile_labels_mobile', { p_user_ids: uniqueIds }, token);
+  return new Map(rows.map((row) => [row.userId, row]));
+}
+
 function pathParts(path: string): string[] { return path.split('/').filter(Boolean); }
 function resourceId(path: string): string {
   const parts = pathParts(path);
-  const collectionIndex = parts.findIndex((part) => ['posts', 'events', 'team-requests', 'connections', 'rooms', 'messages', 'notifications', 'blocks'].includes(part));
+  const collectionIndex = parts.findIndex((part) => ['posts', 'events', 'team-requests', 'connections', 'rooms', 'messages', 'notifications', 'blocks', 'resources'].includes(part));
   return collectionIndex >= 0 ? parts[collectionIndex + 1] ?? '' : parts.at(-1) ?? '';
 }
 function finalId(path: string): string { return pathParts(path).at(-1) ?? ''; }
@@ -177,11 +185,7 @@ async function attachTeamSkills(row: any, token: string): Promise<any> {
 
 async function mapConversationRow(row: any, token: string, viewerId: string) {
   const members = await select<any>('conversation_members', postgrestQuery({ select: '*', conversation_id: `eq.${row.id}` }), token);
-  const displayNames = new Map<string, string>();
-  await Promise.all(members.map(async (member) => {
-    const profiles = await select<any>('profiles', postgrestQuery({ select: 'display_name', user_id: `eq.${member.user_id}` }), token);
-    displayNames.set(member.user_id, profiles[0]?.display_name ?? 'Campus member');
-  }));
+  const labels = await visibleProfileLabels(members.map((member) => member.user_id), token);
   const mine = members.find((member) => member.user_id === viewerId);
   const unread = row.last_message_time && (!mine?.last_read_at || new Date(row.last_message_time) > new Date(mine.last_read_at)) && row.last_message_sender !== viewerId ? 1 : 0;
   return {
@@ -190,7 +194,7 @@ async function mapConversationRow(row: any, token: string, viewerId: string) {
     createdAt: row.created_at, updatedAt: row.updated_at, lastMessagePreview: row.last_message_preview,
     lastMessageTime: row.last_message_time, unreadCount: unread, muted: mine?.notification_mode === 'muted',
     members: members.map((member) => ({ id: member.id, roomId: row.id, userId: member.user_id,
-      displayName: displayNames.get(member.user_id), role: member.role, joinedAt: member.joined_at,
+      displayName: labels.get(member.user_id)?.displayName ?? 'Campus member', role: member.role, joinedAt: member.joined_at,
       leftAt: member.left_at, lastReadAt: member.last_read_at })),
   };
 }
@@ -219,6 +223,24 @@ function mapMessageRow(row: any) {
       scanStatus: attachment.scan_status,
     })),
     createdAt: row.created_at, editedAt: row.edited_at ?? null, deletedAt: row.deleted_at ?? null,
+  };
+}
+
+function mapResourceRow(row: any) {
+  return {
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    description: row.description ?? null,
+    subjectId: row.subject_id ?? null,
+    uploaderId: row.uploader_id,
+    mimeType: row.mime_type ?? null,
+    bytes: row.byte_size ?? null,
+    ratingAvg: row.rating_avg == null ? null : Number(row.rating_avg),
+    ratingCount: Number(row.rating_count ?? 0),
+    createdAt: row.created_at,
+    status: row.status,
+    scanState: row.scan_state,
   };
 }
 
@@ -265,7 +287,11 @@ export async function apiGet<T>(path: string, query: Record<string, string | num
   return withAuth(async (token) => {
     const normalized = path.replace(/^\/+|\/+$/g, '');
     if (normalized === 'me') return getMe(token) as Promise<T>;
-    if (normalized.startsWith('profiles/')) return getProfile(finalId(normalized) === 'me' ? (await getMe(token)).userId : finalId(normalized), token) as Promise<T>;
+    if (normalized.startsWith('profiles/')) {
+      const targetId = finalId(normalized) === 'me' ? (await getMe(token)).userId : finalId(normalized);
+      if (query.scope === 'global') return rpc<T>('get_discoverable_profile_mobile', { p_user_id: targetId }, token);
+      return getProfile(targetId, token) as Promise<T>;
+    }
     if (normalized === 'events') {
       const cursor = decodeCursor(query.cursor);
       const rows = await rpc<any[]>('events_page', { p_limit: Number(query.limit ?? 100), p_after_starts_at: cursor.timestamp, p_after_id: cursor.id }, token);
@@ -325,11 +351,42 @@ export async function apiGet<T>(path: string, query: Record<string, string | num
     if (normalized === 'notifications/preferences') { const me = await getMe(token); const rows = await select<any>('notification_preferences', postgrestQuery({ select: '*', user_id: `eq.${me.userId}` }), token); const row = rows[0] ?? { user_id: me.userId, in_app_enabled: true, push_enabled: false, email_enabled: true, category_settings: {}, updated_at: new Date(0).toISOString() }; const eventTypes = ['post_reaction', 'comment', 'event_reminder', 'club_update', 'chat_message', 'security_alert']; return eventTypes.map((eventType) => { const category = row.category_settings?.[eventType] ?? {}; return { id: `${row.user_id}:${eventType}`, campusId: me.campusId, userId: row.user_id, eventType, inApp: category.in_app ?? row.in_app_enabled, push: category.push ?? row.push_enabled, emailDigest: category.email ?? row.email_enabled, updatedAt: row.updated_at }; }) as T; }
     if (normalized === 'blocks') { return select<any>('user_blocks', postgrestQuery({ select: 'blocked_id,created_at', order: 'created_at.desc' }), token).then((rows) => rows.map((row) => ({ blockedUserId: row.blocked_id, createdAt: row.created_at }))) as Promise<T>; }
     if (normalized === 'follows') { const me = await getMe(token); const rows = await select<any>('following', postgrestQuery({ select: 'followee_id,created_at', follower_id: `eq.${me.userId}`, order: 'created_at.desc' }), token); const items = await Promise.all(rows.map(async (row) => { const profiles = await select<any>('profiles', postgrestQuery({ select: 'display_name', user_id: `eq.${row.followee_id}` }), token); return { targetType: 'person', targetId: row.followee_id, displayName: profiles[0]?.display_name ?? 'Campus member', followedAt: row.created_at }; })); return items as T; }
-    if (normalized === 'recommendations') { const me = await getMe(token); const rows = await select<any>('profiles', postgrestQuery({ select: 'user_id,display_name,department', discoverable: 'eq.true', user_id: `neq.${me.userId}`, limit: query.limit ?? 30 }), token); const items = await Promise.all(rows.map(async (row) => { const skills = await select<any>('profile_skills', postgrestQuery({ select: 'skills(name)', user_id: `eq.${row.user_id}` }), token); return { userId: row.user_id, displayName: row.display_name, department: row.department, matchedTags: skills.map((item) => item.skills?.name).filter(Boolean), explanations: ['skill_overlap'] }; })); return items as T; }
-    if (normalized === 'search') { const q = String(query.q ?? '').trim(); if (q.length < 2) return { hits: [], degraded: false } as T; const requestedType = String(query.type ?? 'all'); const type = requestedType === 'person' ? 'profile' : requestedType; const hits = await rpc<any[]>('search_mobile', { p_query: q, p_type: type, p_limit: Number(query.limit ?? 40) }, token); return { hits: hits.map((hit) => ({ ...hit, docType: hit.docType === 'profile' ? 'person' : hit.docType })), degraded: false } as T; }
+    if (normalized === 'recommendations') return rpc<T>('recommend_people_mobile', { p_limit: Number(query.limit ?? 30) }, token);
+    if (normalized === 'search') {
+      const q = String(query.q ?? '').trim();
+      if (q.length < 2) return { hits: [], degraded: false } as T;
+      const requestedType = String(query.type ?? 'all');
+      const hits = requestedType === 'person'
+        ? await rpc<any[]>('search_people_mobile', { p_query: q, p_limit: Number(query.limit ?? 40) }, token)
+        : await rpc<any[]>('search_mobile', { p_query: q, p_type: requestedType, p_limit: Number(query.limit ?? 40) }, token);
+      return { hits: hits.map((hit) => ({ ...hit, docType: hit.docType === 'profile' ? 'person' : hit.docType })), degraded: false } as T;
+    }
     if (normalized === 'account/requests') { const rows = await select<any>('account_requests', postgrestQuery({ select: '*', order: 'requested_at.desc', limit: 100 }), token); return rows.map((row) => ({ id: row.id, type: row.request_type, status: row.status, targetUniversityId: row.target_campus_id, reason: row.reason, requestedAt: row.requested_at, updatedAt: row.updated_at, completedAt: row.completed_at })) as T; }
-    if (normalized === 'bookmarks') { const me = await getMe(token); const [posts, events] = await Promise.all([select<any>('post_bookmarks', postgrestQuery({ select: 'post_id', user_id: `eq.${me.userId}` }), token), select<any>('event_bookmarks', postgrestQuery({ select: 'event_id', user_id: `eq.${me.userId}` }), token)]); return [...posts.map((r) => ({ target_type: 'post', target_id: r.post_id })), ...events.map((r) => ({ target_type: 'event', target_id: r.event_id }))] as T; }
-    if (normalized === 'universities') { const rows = await select<any>('campuses', postgrestQuery({ select: 'id,name,slug,country_code,timezone', name: query.q ? `ilike.*${String(query.q)}*` : undefined, status: 'eq.active', limit: query.limit ?? 25 }), token); return { items: rows.map((r) => ({ id: r.id, name: r.name, country: r.country_code, countryCode: r.country_code, domain: null, stateProvince: null })), total: rows.length, limit: Number(query.limit ?? 25), offset: 0 } as T; }
+    if (normalized === 'bookmarks') { const me = await getMe(token); const [posts, events, resources] = await Promise.all([select<any>('post_bookmarks', postgrestQuery({ select: 'post_id', user_id: `eq.${me.userId}` }), token), select<any>('event_bookmarks', postgrestQuery({ select: 'event_id', user_id: `eq.${me.userId}` }), token), select<any>('resource_bookmarks', postgrestQuery({ select: 'resource_id', user_id: `eq.${me.userId}` }), token)]); return [...posts.map((r) => ({ target_type: 'post', target_id: r.post_id })), ...events.map((r) => ({ target_type: 'event', target_id: r.event_id })), ...resources.map((r) => ({ target_type: 'resource', target_id: r.resource_id }))] as T; }
+    if (normalized === 'resources') { const rows = await rpc<any[]>('list_resources_mobile', { p_mine: query.mine === 'true', p_limit: Number(query.limit ?? 100) }, token); return { items: rows.map(mapResourceRow), nextCursor: null } as T; }
+    if (/^resources\/[^/]+$/.test(normalized)) { const rows = await select<any>('resources', postgrestQuery({ select: '*', id: `eq.${resourceId(normalized)}`, deleted_at: 'is.null', limit: 1 }), token); if (!rows[0]) throw new ApiError('Resource unavailable.', 404, 'RESOURCE_NOT_FOUND'); return mapResourceRow(rows[0]) as T; }
+    if (/^resources\/[^/]+\/download$/.test(normalized)) { const id = resourceId(normalized); const rows = await select<any>('resources', postgrestQuery({ select: 'storage_key', id: `eq.${id}`, deleted_at: 'is.null' }), token); if (!rows[0]?.storage_key) throw new ApiError('Resource unavailable.', 404, 'RESOURCE_NOT_FOUND'); return { downloadUrl: await createStorageSignedUrl(RESOURCE_BUCKET, rows[0].storage_key, token, 300), expiresAt: new Date(Date.now() + 300_000).toISOString() } as T; }
+    if (normalized === 'universities') {
+      const limit = Number(query.limit ?? 25);
+      const offset = Number(query.offset ?? 0);
+      const rows = await rpc<any[]>('search_campuses_mobile', { p_query: String(query.q ?? ''), p_limit: limit, p_offset: offset }, token);
+      return {
+        items: rows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          country: r.country_code,
+          countryCode: r.country_code,
+          domain: r.domain ?? null,
+          stateProvince: r.state_province ?? null,
+          city: r.city ?? null,
+          institutionType: r.institution_type ?? null,
+          websiteUrl: r.website_url ?? null,
+        })),
+        total: Number(rows[0]?.total_count ?? 0),
+        limit,
+        offset,
+      } as T;
+    }
     throw new ApiError(`The CampusSphere backend does not expose /${normalized} yet.`, 501, 'ENDPOINT_NOT_IMPLEMENTED');
   }, retry401);
 }
@@ -352,6 +409,10 @@ export async function apiRequest<T>(path: string, init: { method: 'POST' | 'PATC
     if (/^posts\/[^/]+$/.test(normalized) && init.method === 'DELETE') return rpc<T>('delete_post_mobile', { p_post_id: resourceId(normalized) }, token);
     if (/^posts\/[^/]+\/reactions$/.test(normalized)) return rpc<T>('set_post_reaction_mobile', { p_post_id: resourceId(normalized), p_enabled: Boolean(body.enabled) }, token);
     if (/^posts\/[^/]+\/poll-votes\/[^/]+$/.test(normalized) && init.method === 'POST') return rpc<T>('set_post_poll_vote_mobile', { p_option_id: finalId(normalized), p_selected: Boolean(body.selected) }, token);
+    if (normalized === 'resources/upload-intents' && init.method === 'POST') return rpc<T>('create_resource_upload_intent_mobile', { p_title: body.title, p_description: body.description ?? null, p_type: body.type, p_mime_type: body.mimeType, p_byte_size: body.bytes }, token);
+    if (/^resources\/[^/]+\/complete-upload$/.test(normalized) && init.method === 'POST') return rpc<T>('complete_resource_upload_mobile', { p_resource_id: resourceId(normalized), p_byte_size: body.bytes }, token);
+    if (/^resources\/[^/]+$/.test(normalized) && init.method === 'PATCH') return rpc<any>('update_resource_mobile', { p_resource_id: resourceId(normalized), p_title: body.title, p_description: body.description ?? null }, token).then((row) => mapResourceRow(row) as T);
+    if (/^resources\/[^/]+$/.test(normalized) && init.method === 'DELETE') return rpc<T>('delete_resource_mobile', { p_resource_id: resourceId(normalized) }, token);
     if (normalized === 'bookmarks' && init.method === 'POST') return rpc<T>('set_bookmark_mobile', { p_target_type: body.targetType, p_target_id: body.targetId, p_bookmarked: Boolean(body.bookmarked) }, token);
     if (/^events\/[^/]+\/registrations$/.test(normalized)) return rpc<T>(init.method === 'POST' ? 'register_for_event' : 'cancel_event_registration', { target_event_id: resourceId(normalized) }, token);
     if (/^events\/[^/]+\/reminders$/.test(normalized)) return rpc<T>('set_event_reminder_mobile', { p_event_id: resourceId(normalized), p_enabled: init.method !== 'DELETE', p_minutes_before: body.minutesBefore ?? 1440 }, token);
@@ -403,6 +464,10 @@ export const apiDelete = <T = void>(path: string) => apiRequest<T>(path, { metho
 function safeStorageFileName(name: string): string {
   const normalized = name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
   return normalized.slice(-180) || 'attachment';
+}
+
+export async function uploadResourceObject(storageKey: string, content: Blob, mimeType: string): Promise<void> {
+  return withAuth((token) => uploadStorageObject(RESOURCE_BUCKET, storageKey, content, mimeType, token));
 }
 
 export async function uploadChatAttachment(input: {

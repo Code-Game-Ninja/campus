@@ -9,12 +9,11 @@ import { apiDelete, apiPatch } from '@/lib/api';
 import { apiQueryKey, useApiQuery } from '@/lib/api-hooks';
 import type { TeamRequestPage } from '@/lib/discovery';
 import { feedRank, mapPost, type FeedPage } from '@/lib/feed';
-import type { ApiListingPage } from '@/lib/marketplace';
 import type { ApiResource } from '@/lib/resources';
 import { useAppStore } from '@/store/useAppStore';
 import { usePalette } from '@/theme/usePalette';
 
-const tabs = ['Posts', 'Materials', 'Listings', 'Teams'] as const;
+const tabs = ['Posts', 'Materials', 'Teams'] as const;
 type Tab = (typeof tabs)[number];
 
 type MaterialReviewState = {
@@ -55,20 +54,15 @@ export default function MyContent() {
   const postsQuery = useApiQuery<FeedPage>(apiQueryKey('my-content', 'posts'), '/posts', { rank: feedRank('For you'), limit: 100 });
   const materialsQuery = useApiQuery<{ items: ApiResource[] }>(apiQueryKey('my-content', 'materials'), '/resources', { mine: 'true', limit: 100 });
   const teamQuery = useApiQuery<TeamRequestPage>(apiQueryKey('my-content', 'teams'), '/team-requests', { limit: 100 });
-  const marketplaceQuery = useApiQuery<ApiListingPage>(apiQueryKey('my-content', 'listings', 'marketplace'), '/listings', { type: 'marketplace', limit: 100 });
-  const lostQuery = useApiQuery<ApiListingPage>(apiQueryKey('my-content', 'listings', 'lost'), '/listings', { type: 'lost', limit: 100 });
-  const foundQuery = useApiQuery<ApiListingPage>(apiQueryKey('my-content', 'listings', 'found'), '/listings', { type: 'found', limit: 100 });
-  const listingQueries = [marketplaceQuery, lostQuery, foundQuery];
   const userId = me.data?.userId;
   const posts = useMemo(() => (postsQuery.data?.items ?? []).filter((post) => post.author.userId === userId).map((post) => mapPost(post, me.data?.campusId ?? 'My campus')), [me.data?.campusId, postsQuery.data?.items, userId]);
-  const listings = useMemo(() => listingQueries.flatMap((query) => query.data?.items ?? []).filter((listing) => listing.isOwner), [listingQueries]);
   const teams = useMemo(() => (teamQuery.data?.items ?? []).filter((team) => team.isOwner), [teamQuery.data?.items]);
   const materials = materialsQuery.data?.items ?? [];
-  const count = tab === 'Posts' ? posts.length : tab === 'Materials' ? materials.length : tab === 'Listings' ? listings.length : teams.length;
-  const loading = me.isLoading || (tab === 'Posts' ? postsQuery.isLoading : tab === 'Materials' ? materialsQuery.isLoading : tab === 'Listings' ? listingQueries.some((query) => query.isLoading) : teamQuery.isLoading);
-  const error = me.error ?? (tab === 'Posts' ? postsQuery.error : tab === 'Materials' ? materialsQuery.error : tab === 'Listings' ? listingQueries.find((query) => query.error)?.error : teamQuery.error);
-  const refetch = () => { void me.refetch(); if (tab === 'Posts') void postsQuery.refetch(); if (tab === 'Materials') void materialsQuery.refetch(); if (tab === 'Teams') void teamQuery.refetch(); if (tab === 'Listings') listingQueries.forEach((query) => void query.refetch()); };
-  const create = () => router.push(tab === 'Posts' ? '/compose' : tab === 'Materials' ? '/discover/notes/upload' : tab === 'Listings' ? '/discover/listings/new' : '/discover/tribe/new-team');
+  const count = tab === 'Posts' ? posts.length : tab === 'Materials' ? materials.length : teams.length;
+  const loading = me.isLoading || (tab === 'Posts' ? postsQuery.isLoading : tab === 'Materials' ? materialsQuery.isLoading : teamQuery.isLoading);
+  const error = me.error ?? (tab === 'Posts' ? postsQuery.error : tab === 'Materials' ? materialsQuery.error : teamQuery.error);
+  const refetch = () => { void me.refetch(); if (tab === 'Posts') void postsQuery.refetch(); if (tab === 'Materials') void materialsQuery.refetch(); if (tab === 'Teams') void teamQuery.refetch(); };
+  const create = () => router.push(tab === 'Posts' ? '/compose' : tab === 'Materials' ? '/discover/notes/upload' : '/discover/tribe/new-team');
   const editMaterial = (material: ApiResource) => { setEditingMaterial(material); setMaterialTitle(material.title); setMaterialDescription(material.description ?? ''); };
   const saveMaterial = async () => { if (!editingMaterial || !materialTitle.trim()) return; setSavingMaterial(true); try { await apiPatch(`/resources/${editingMaterial.id}`, { title: materialTitle.trim(), description: materialDescription.trim() }); await materialsQuery.refetch(); setEditingMaterial(null); toast({ type: 'success', message: 'Material updated.' }); } catch (cause) { toast({ type: 'error', message: (cause as Error).message }); } finally { setSavingMaterial(false); } };
   const deleteMaterial = async (id: string) => { try { await apiDelete(`/resources/${id}`); await materialsQuery.refetch(); toast({ type: 'success', message: 'Material removed.' }); } catch (cause) { toast({ type: 'error', message: (cause as Error).message }); } };
@@ -77,7 +71,6 @@ export default function MyContent() {
     {error ? <StateView icon="cloud-offline" tone="danger" title="Your content is unavailable" detail={error.message} action="Retry" onAction={refetch} /> : loading ? <StateView icon="hourglass-outline" title="Loading your content" detail="Checking ownership with the server…" /> : count === 0 ? <StateView icon="create-outline" title={`No ${tab.toLowerCase()} yet`} detail="Create content, then manage it from its detail screen." action={`Create ${tab === 'Teams' ? 'team request' : tab.slice(0, -1).toLowerCase()}`} onAction={create} /> : <>
       {tab === 'Posts' ? posts.map((post) => <PostCard key={post.id} post={post} />) : null}
       {tab === 'Materials' ? <View style={{ gap: 11 }}>{editingMaterial ? <Card style={{ gap: 12 }}><Field label="Title" value={materialTitle} onChangeText={setMaterialTitle} /><Field label="Description" value={materialDescription} onChangeText={setMaterialDescription} multiline /><View style={{ flexDirection: 'row', gap: 9 }}><View style={{ flex: 1 }}><Button variant="ghost" label="Cancel" onPress={() => setEditingMaterial(null)} /></View><View style={{ flex: 1 }}><Button label="Save" loading={savingMaterial} disabled={!materialTitle.trim()} onPress={() => void saveMaterial()} /></View></View></Card> : null}{materials.map((material) => { const review = materialReviewState(material); return <Card key={material.id}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Ionicons name="document-text" size={27} color={p.brand} /><View style={{ flex: 1, gap: 5 }}><Text style={{ color: p.ink, fontSize: 16, fontWeight: '900' }}>{material.title}</Text><Badge label={review.label} tone={review.tone} icon={review.icon} /><Body muted>{review.detail}</Body></View><OwnerActions target="material" onEdit={() => editMaterial(material)} onDelete={() => void deleteMaterial(material.id)} /></View></Card>; })}</View> : null}
-      {tab === 'Listings' ? <View style={{ gap: 11 }}>{listings.map((listing) => <Card key={listing.id} onPress={() => router.push(`/discover/listings/${listing.id}`)}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Ionicons name="pricetag" size={23} color="#344054" /><View style={{ flex: 1 }}><Text style={{ color: p.ink, fontSize: 16, fontWeight: '900' }}>{listing.title}</Text><Body muted>{listing.type} · {listing.status}</Body></View><Badge label="Owner" tone="brand" /></View></Card>)}</View> : null}
       {tab === 'Teams' ? <View style={{ gap: 11 }}>{teams.map((team) => <Card key={team.id} onPress={() => router.push(`/discover/tribe/team/${team.id}`)}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Ionicons name="people" size={23} color="#344054" /><View style={{ flex: 1 }}><Text style={{ color: p.ink, fontSize: 16, fontWeight: '900' }}>{team.title}</Text><Body muted>{team.status} · {team.neededTags.join(' · ') || 'Open collaboration request'}</Body></View><Badge label="Owner" tone="brand" /></View></Card>)}</View> : null}
     </>}
   </Screen>;

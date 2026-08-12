@@ -1,10 +1,10 @@
-import { apiPost } from './api';
+import { apiPost, uploadResourceObject } from './api';
 
 export type ResourceType = 'notes' | 'past_paper' | 'assignment' | 'lab_manual' | 'presentation';
 export type UploadStage = 'intent' | 'storage' | 'complete';
 
-export interface UploadIntent { resourceId: string; uploadUrl: string; expiresAt: string }
-export interface CompleteUploadResponse { resourceId: string; status: 'needs_review' }
+export interface UploadIntent { resourceId: string; storageKey: string; uploadUrl: string; expiresAt: string }
+export interface CompleteUploadResponse { resourceId: string; status: 'approved' }
 
 export interface UploadMetadata {
   title: string;
@@ -19,30 +19,11 @@ export async function createUploadIntent(input: UploadMetadata): Promise<UploadI
 }
 
 export async function uploadToIntent(intent: UploadIntent, mimeType: string, data: Blob | ArrayBuffer): Promise<void> {
-  if (intent.uploadUrl.startsWith('mock://')) {
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    return;
+  if (!intent.storageKey || !intent.uploadUrl.startsWith('supabase://study-resources/')) {
+    throw new Error('Backend returned an invalid study-resource upload destination.');
   }
-  const azure = new URL(intent.uploadUrl).hostname.endsWith('.blob.core.windows.net');
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 120_000);
-  try {
-    const response = await fetch(intent.uploadUrl, {
-      method: 'PUT',
-      headers: {
-        ...(azure ? { 'x-ms-blob-type': 'BlockBlob' } : { 'x-upsert': 'false' }),
-        'Content-Type': mimeType,
-      },
-      body: data,
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`Storage upload failed (${response.status})`);
-  } catch (error) {
-    if ((error as Error).name === 'AbortError') throw new Error('Storage upload timed out. Check your connection and retry.');
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
+  const content = data instanceof Blob ? data : new Blob([data], { type: mimeType });
+  await uploadResourceObject(intent.storageKey, content, mimeType);
 }
 
 export async function completeUploadIntent(resourceId: string, bytes: number): Promise<CompleteUploadResponse> {

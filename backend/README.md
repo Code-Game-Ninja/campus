@@ -96,10 +96,51 @@ pnpm load:cloud 100 10
 
 See `docs/mvp_external_verification.md` for owner-run Realtime, provider, device, backup, and pilot checks.
 
+## Supabase Auth email through custom SMTP
+
+Mobile does not contain SMTP credentials. Initial verification and resend both call Supabase Auth `POST /otp`; Supabase delivers the message through its configured custom SMTP provider.
+
+Configure in the Supabase Dashboard:
+
+1. Disable or delete **Authentication > Auth Hooks > Send Email**. A send-email hook replaces SMTP and email templates.
+2. Open **Authentication > Emails** (SMTP settings) and enable custom SMTP.
+3. Enter provider host, port (normally `587` with STARTTLS), username, password or app password, sender email, and sender name (`CampusSphere`).
+4. Save settings and send a fresh OTP. Never put SMTP credentials in this repository or in the mobile app.
+
+For Gmail testing, use `smtp.gmail.com`, port `587`, the full Gmail address, and a Google App Password (2-Step Verification required). Use a verified transactional SMTP provider for production scale.
+
+Set the **Magic Link** template to show the numeric token:
+
+```html
+<h2>CampusSphere verification code</h2>
+<p>Enter this code in CampusSphere:</p>
+<p style="font-size:32px;letter-spacing:8px;font-weight:700;">{{ .Token }}</p>
+<p>This code expires soon. If you did not request it, ignore this email.</p>
+```
+
+Set subject to `CampusSphere verification code`. Remove every `{{ .ConfirmationURL }}` reference. No mobile rebuild or database migration is required after changing SMTP; request a new code to test delivery.
+
+## Indian college and university catalogue
+
+Migration `0016_indian_campus_catalog.sql` adds searchable institution metadata and the mobile-safe `search_campuses_mobile` RPC. The backend sync merges and deduplicates records from:
+
+- `https://colleges-api.onrender.com/`
+- `https://indian-colleges-list.vercel.app/api/institutions`
+
+Apply the migration, then run the import with backend-only service-role credentials:
+
+```powershell
+$env:CAMPUSSPHERE_SUPABASE_URL = "https://<project-ref>.supabase.co"
+$env:CAMPUSSPHERE_SUPABASE_SERVICE_ROLE_KEY = "<service-role-key>"
+pnpm sync:universities
+```
+
+Never put the service-role key in mobile or Git. Sync is idempotent and does not deactivate existing campuses when an upstream API is temporarily unavailable. Validate normalization without network/cloud writes using `pnpm check:university-sync`.
+
 ## Implemented backend scope
 
 - Migrations `0001`–`0012` are cloud-applied (owner-confirmed).
-- Migration `0013` adds transactional mobile profile, Team Finder, post/poll, social, notification/device, reminder, and chat preference mutations. Migrations `0014`–`0015` normalize legacy cloud `public.users` display-name and account-status constraints so Supabase Auth can create new students safely. Apply all three before full cloud verification.
+- Migration `0013` adds transactional mobile profile, Team Finder, post/poll, social, notification/device, reminder, and chat preference mutations. Migrations `0014`–`0015` normalize legacy cloud `public.users` display-name and account-status constraints. Migration `0016` adds the Indian institution catalogue. Migration `0017` adds student study-resource upload/download/bookmark flows. Apply pending migrations before full cloud verification.
 - Student social, independent Team Finder, relationships, notifications, safety, consented analytics, and CampusSphere-owned chat are backend-owned.
 - Mobile profile/onboarding RPCs are in `0006_mobile_profile_rpc.sql`.
 - `E:\projects\ChitChat` is read-only reference material only. No ChitChat files, tables, project, or database are edited, imported, renamed, or reused.

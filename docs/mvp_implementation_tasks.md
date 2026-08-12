@@ -1,6 +1,6 @@
 # CampusSphere MVP Implementation Tasks
 
-**Status:** Local mobile/backend MVP implementation is complete. Backend migrations `0001`–`0012` are applied to CampusSphere Supabase cloud (owner-confirmed 10 August 2026); `0013` plus legacy Auth compatibility migrations `0014`–`0015` require remote confirmation. Mobile uses real Supabase data with no active mock backend imports. Deterministic local Supabase fixtures, read-only smoke checks, mutation/storage verification, load tooling, CI typecheck/web export, and owner external-release checklist now exist. Remaining release gates are owner-run cloud/RLS/concurrency/realtime/device/load tests plus email/push/media-processing/scheduler/monitoring configuration.
+**Status:** Local mobile/backend MVP implementation is complete through migration `0020`. Migrations `0016`–`0020` require owner cloud push and verification. Mobile uses real Supabase data with no active mock backend imports or mock upload fallback. Deterministic local fixtures, backend validation, TypeScript checks, production web export, Android Hermes regression bundling, cloud verification/load tooling, and the owner external-release checklist pass or exist locally. Remaining release gates are owner-run cloud/RLS/concurrency/realtime/device/load tests plus email/push/media-processing/scheduler/monitoring configuration.
 **Source:** `docs/mvp_implementation_questionnaire.md`, `docs/backend_mvp_implementation_plan.md`, `docs/architecture_decisions.md`  
 **Target:** Closed-pilot MVP by 15 August 2026  
 **Implementer:** Codex with owner review  
@@ -71,7 +71,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Stop before external writes without approval.
 - **Estimate:** 1 hour.
 - **Gate:** Owner approval.
-- **Status:** [~] Supabase cloud, Expo mobile stack, GitHub Actions scaffold, environment templates, and no-secret policy are documented. Email/push/media-processing/monitoring providers and secrets still require owner configuration.
+- **Status:** [~] Supabase cloud, Expo mobile stack, GitHub Actions, environment templates, and no-secret policy are documented. Custom SMTP is selected for Supabase Auth email; owner must enter SMTP credentials, sender identity, and OTP template in the Supabase Dashboard. Push/media-processing/monitoring providers still require owner configuration.
 
 ### P0.3 Freeze initial REST/OpenAPI contract
 
@@ -221,7 +221,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** No silent production mock fallback.
 - **Estimate:** 4 hours.
 - **Gate:** Auth demo approval.
-- **Status:** [x] Implementation complete — mock auth is removed; OTP, six-digit verification, Supabase-backed resend with a 60-second cooldown, refresh, persistent sessions, per-device/global logout, route lookup, campus bootstrap, and onboarding use CampusSphere Supabase. Owner live auth verification belongs to Phase 10.
+- **Status:** [x] Implementation complete — mock auth is removed; OTP, six-digit verification, Supabase-backed resend with a 60-second cooldown, refresh, persistent sessions, per-device/global logout, route lookup, campus bootstrap, and onboarding use CampusSphere Supabase. Root redirects now wait for Expo Router navigation readiness while keeping the root navigator mounted, so restored authenticated sessions can replace directly into Home without an unhandled navigation action. Owner live auth verification belongs to Phase 10.
 
 ### P3.2 Implement campus verification and onboarding
 
@@ -233,7 +233,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Do not store unnecessary identity data.
 - **Estimate:** 4 hours.
 - **Gate:** Onboarding approval.
-- **Status:** [x] Implementation complete — `0013` and mobile onboarding cover full profile fields, taxonomy, visibility, age confirmation, Terms, and Privacy acceptance. Local SQL/static/TypeScript checks pass.
+- **Status:** [~] Local implementation complete — `0013` and mobile onboarding cover profile/consent fields; `0016` adds searchable Indian college/university metadata and an idempotent two-source catalogue sync; `0017` enables private student study-resource upload, exact byte/object completion validation, signed download, explicit bookmark state, direct resource detail reads, uploader-only My Content filtering, ownership controls, and Saved Events; `0019` adds privacy-safe people discovery and real Team Finder matching. Global session routing prevents stale auth/onboarding history from reopening college selection; completed legacy profiles with a missing onboarding timestamp are recovered from the existing profile row and skip campus/profile setup; Discover/My Content/Saved/Following expose only working MVP surfaces; active mobile source contains no mock backend or upload fallback. Local SQL/config/contract/static/backend TypeScript/mobile TypeScript/production web export/Android Hermes checks pass on 12 August 2026. Owner must push `0016`–`0019`, run `pnpm sync:universities`, and verify cloud flows.
 
 ### P3.3 Connect profiles, privacy, discovery, and suggestions
 
@@ -309,7 +309,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Text-only fallback if storage is not approved.
 - **Estimate:** 4 hours.
 - **Gate:** None.
-- **Status:** [x] Implementation complete — transactional typed posts, private media, link previews, polls, event/team links, ownership mutations, 2,000-character UI, uploads, signed reads, and linked cards exist.
+- **Status:** [x] Implementation complete — transactional typed posts, private media, link previews, polls, event/team links, ownership mutations, 2,000-character UI, uploads, signed reads, and linked cards exist. Migration `0018` fixes restriction-trigger ownership lookup so post creation uses `author_id` without evaluating a missing `owner_id` field.
 
 ### P5.2 Implement newest-first feed and cursor pagination
 
@@ -347,7 +347,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Deterministic matching only.
 - **Estimate:** 4 hours.
 - **Gate:** None.
-- **Status:** [x] Implementation complete — Team Finder covers taxonomy, commitment, availability, deadlines, completion dates, questions, matching, expiry, and cursor discovery independently from events.
+- **Status:** [x] Implementation complete — Team Finder covers taxonomy, commitment, availability, deadlines, completion dates, questions, expiry, and cursor discovery independently from events. Migration `0019` provides real privacy-safe recommendations ranked by shared skills, interests, availability, campus, and recency; zero-overlap discoverable members remain fallback results. Migration `0018` fixes team-request restriction-trigger ownership lookup. Migration `0021` restores non-partial conflict arbiters for team-room creation and skill/interest upserts on legacy cloud schemas.
 
 ### P6.2 Implement applications and membership state machine
 
@@ -385,7 +385,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Hide following UI if it is not needed for first cut.
 - **Estimate:** 3–4 hours.
 - **Gate:** None.
-- **Status:** [x] Implementation complete — follows and connection state are distinct, block-aware, idempotent, suggestion-ready, and enforce 24-hour retry cooldown; direct mobile writes are removed.
+- **Status:** [x] Implementation complete — follows and connection state are distinct, block-aware, idempotent, and enforce 24-hour retry cooldown. Chat Connections now searches active discoverable people, shows accepted/pending/request states, and creates requests through backend mutations; direct mobile table writes remain removed.
 
 ### P7.2 Implement direct and team chat rooms
 
@@ -397,7 +397,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Direct/team chat only.
 - **Estimate:** 4 hours.
 - **Gate:** Chat foundation approval.
-- **Status:** [x] Implementation complete — direct/team room RLS/RPCs, member mapping, mute preferences, idempotent creation, and mobile reads target CampusSphere Supabase. ChitChat is not modified.
+- **Status:** [x] Implementation complete — direct/team room RLS/RPCs, member mapping, mute preferences, idempotent creation, and mobile reads target CampusSphere Supabase. Direct messages open only for accepted connections; other discoverable members receive a chat request first. Migration `0020` restores exact unique conflict targets on legacy cloud schemas; `0021` adds independently named non-partial Team Finder arbiters when a legacy index name is already occupied. ChitChat is not modified.
 
 ### P7.3 Implement message lifecycle and realtime reconciliation
 
@@ -435,7 +435,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** In-app only until credentials are approved.
 - **Estimate:** 2–3 hours.
 - **Gate:** External-service approval.
-- **Status:** [!] Blocked on owner provider choice and credentials — delivery worker contract exists, but no email provider can be configured or live-tested without external secrets.
+- **Status:** [~] Mobile/Auth integration complete — Supabase Auth `/otp` supplies OTP and resend, while custom SMTP handles delivery without mobile secrets. Static coverage verifies `/otp`, resend cooldown, and absence of direct provider credentials/calls in mobile source. Owner must configure SMTP, sender identity, OTP template, and live-test delivery.
 
 ### P8.3 Reconcile event reminder channel
 
@@ -461,7 +461,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Defer message search/autocomplete if needed.
 - **Estimate:** 3–4 hours.
 - **Gate:** Search review.
-- **Status:** [x] Implementation complete — privacy-aware per-type profile/event/post/team search and membership-scoped message search exclude blocked/private/removed content.
+- **Status:** [x] Implementation complete — privacy-aware per-type profile/event/post/team search and membership-scoped message search exclude blocked/private/removed content. Migration `0019` adds safe global people search and discoverable-profile summaries without exposing email or bypassing full-profile visibility rules.
 
 ### P9.2 Implement blocking and reports
 
@@ -523,7 +523,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Split slow E2E from PR checks but retain release gate.
 - **Estimate:** 4 hours.
 - **Gate:** Technical approval.
-- **Status:** [~] Local automation complete — SQL/config/API-contract/script/TypeScript/static coverage, deterministic seed coverage, read-only smoke, transactional mutation/storage verification, load runner, CI, web export, and Android Hermes regression bundling exist. Babel regression check prevents React Native readonly `Event.NONE` constants from being rewritten into crashing assignments. Owner must execute authenticated database/RLS/concurrency/Realtime/device suites after `0013` cloud push; checklist is `docs/mvp_external_verification.md`.
+- **Status:** [~] Local automation complete — all 21 migrations pass static SQL validation; config, API contract, MVP coverage, two-source institution normalization, backend/mobile TypeScript, production web export, Android Hermes bundling, and `git diff --check` pass. Regression coverage locks resource uploads, deterministic navigation/onboarding, restriction-trigger ownership, absence of runtime mocks, React Native readonly `Event.NONE`, privacy-safe people discovery/recommendations, searchable chat requests, caught Ionicons font loading, tunnel startup, and Team Finder conflict targets. Owner must execute authenticated cloud database/RLS/concurrency/Realtime/device suites after pushing `0016`–`0021`; checklist is `docs/mvp_external_verification.md`.
 
 ### P10.2 Validate performance targets
 

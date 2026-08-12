@@ -15,6 +15,9 @@ export interface University {
   countryCode: string | null;
   domain: string | null;
   stateProvince: string | null;
+  city?: string | null;
+  institutionType?: string | null;
+  websiteUrl?: string | null;
 }
 
 export interface UniversitySearchResult {

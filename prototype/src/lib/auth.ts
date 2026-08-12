@@ -98,12 +98,23 @@ export async function resolveOnboardingRoute(): Promise<OnboardingRoute | null> 
   const session = await restoreSession();
   if (!session) return null;
   const rows = await supabaseRequest<Array<{
+    id: string;
     campus_id: string | null;
     onboarding_completed_at: string | null;
-  }>>('rest', 'users?select=campus_id,onboarding_completed_at&limit=1', { accessToken: session.access_token });
+  }>>('rest', 'users?select=id,campus_id,onboarding_completed_at&limit=1', { accessToken: session.access_token });
   const identity = rows[0];
   if (!identity?.campus_id) return 'university';
-  return identity.onboarding_completed_at ? 'complete' : 'profile';
+  if (identity.onboarding_completed_at) return 'complete';
+
+  // Older accounts can have a completed profile from before the onboarding
+  // completion timestamp was introduced. Recover those sessions instead of
+  // forcing users through campus and profile setup again.
+  const profiles = await supabaseRequest<Array<{ user_id: string }>>(
+    'rest',
+    `profiles?select=user_id&user_id=eq.${encodeURIComponent(identity.id)}&limit=1`,
+    { accessToken: session.access_token },
+  );
+  return profiles.length > 0 ? 'complete' : 'profile';
 }
 
 export async function bootstrapIdentity(campusId: string): Promise<{ userId: string; campusId: string; created: boolean }> {

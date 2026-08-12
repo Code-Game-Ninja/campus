@@ -1,0 +1,18 @@
+{
+  "institutions": [
+    {
+      "institution_name": "Indian Institute of Technology Bombay",
+      "state": "Maharashtra",
+      "district": "Mumbai",
+      "institution_type": "Institute of National Importance",
+      "website": "https://www.iitb.ac.in"
+    },
+    {
+      "College Name": "University of Delhi",
+      "State Name": "Delhi",
+      "District Name": "Delhi",
+      "Type": "Central University",
+      "domain": "du.ac.in"
+    }
+  ]
+}

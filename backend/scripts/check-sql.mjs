@@ -14,6 +14,10 @@ if (!existsSync(join(root, 'supabase', 'config.toml'))) failures.push('supabase/
 
 const migrationText = migrationFiles.map((file) => readFileSync(join(migrationsDir, file), 'utf8')).join('\n');
 const migrationEight = readFileSync(join(migrationsDir, '0008_notification_outbox.sql'), 'utf8').toLowerCase();
+const restrictionTriggerFix = readFileSync(join(migrationsDir, '0018_content_restriction_trigger_fix.sql'), 'utf8').toLowerCase();
+const peopleDiscovery = readFileSync(join(migrationsDir, '0019_people_discovery_recommendations.sql'), 'utf8').toLowerCase();
+const conflictIndexes = readFileSync(join(migrationsDir, '0020_conflict_target_indexes.sql'), 'utf8').toLowerCase();
+const teamCreationConflictIndexes = readFileSync(join(migrationsDir, '0021_team_creation_conflict_targets.sql'), 'utf8').toLowerCase();
 
 for (const file of migrationFiles) {
   const sql = readFileSync(join(migrationsDir, file), 'utf8');
@@ -23,12 +27,35 @@ for (const marker of ['create extension if not exists pgcrypto', 'create schema 
   if (!migrationText.toLowerCase().includes(marker)) failures.push(`foundation migration missing: ${marker}`);
 }
 
-for (const marker of ['create or replace function public.search_mobile', 'create or replace function public.apply_moderation_action', 'create or replace function public.list_moderation_queue', 'create or replace function public.list_moderation_audit', 'create or replace function public.record_analytics_event', 'create or replace function public.request_account_deletion', 'create or replace function public.request_data_export', 'create or replace function public.export_my_data', 'create or replace function public.claim_account_deletions', 'create or replace function public.expire_team_requests', 'create or replace function public.cleanup_retention', 'create or replace function public.consume_rate_limit', 'create or replace function public.feed_page', 'create or replace function public.events_page', 'create or replace function public.team_requests_page', 'create or replace function public.notifications_page', 'create or replace function public.update_notification_preferences', 'create table if not exists public.account_requests', 'create unique index if not exists user_restrictions_active_uidx', 'create policy post_media_read on storage.objects']) {
+for (const marker of ['create or replace function public.search_mobile', 'create or replace function public.search_campuses_mobile', 'catalog_source_id', 'create table if not exists public.resources', 'create or replace function public.create_resource_upload_intent_mobile', 'create or replace function public.complete_resource_upload_mobile', 'create or replace function public.list_resources_mobile', 'create or replace function public.apply_moderation_action', 'create or replace function public.list_moderation_queue', 'create or replace function public.list_moderation_audit', 'create or replace function public.record_analytics_event', 'create or replace function public.request_account_deletion', 'create or replace function public.request_data_export', 'create or replace function public.export_my_data', 'create or replace function public.claim_account_deletions', 'create or replace function public.expire_team_requests', 'create or replace function public.cleanup_retention', 'create or replace function public.consume_rate_limit', 'create or replace function public.feed_page', 'create or replace function public.events_page', 'create or replace function public.team_requests_page', 'create or replace function public.notifications_page', 'create or replace function public.update_notification_preferences', 'create table if not exists public.account_requests', 'create unique index if not exists user_restrictions_active_uidx', 'create policy post_media_read on storage.objects']) {
   if (!migrationText.toLowerCase().includes(marker)) failures.push(`domain hardening migration missing: ${marker}`);
 }
 
 if (migrationEight.includes("quiet_hours ->> 'start'")) {
   failures.push('applied migration 0008 contains later quiet-hour changes; move them to a new migration');
+}
+
+for (const marker of ["row_data := to_jsonb(new)", "row_data ? 'author_id'", "row_data ? 'owner_id'"]) {
+  if (!restrictionTriggerFix.includes(marker)) failures.push(`content restriction trigger fix missing: ${marker}`);
+}
+if (/new\.(author_id|owner_id)/.test(restrictionTriggerFix)) {
+  failures.push('content restriction trigger fix must not directly access table-specific NEW fields');
+}
+
+for (const marker of ['create or replace function public.search_people_mobile', 'create or replace function public.recommend_people_mobile', 'create or replace function public.get_discoverable_profile_mobile', "u.status = 'active'", 'p.discoverable', 'not public.are_users_blocked', 'grant execute']) {
+  if (!peopleDiscovery.includes(marker)) failures.push(`people discovery migration missing: ${marker}`);
+}
+if (!peopleDiscovery.includes("jsonb_typeof(actor_profile.availability) = 'object'") || !peopleDiscovery.includes("jsonb_typeof(p.availability) = 'object'")) {
+  failures.push('people recommendations must guard non-object availability JSON');
+}
+for (const marker of ['create unique index if not exists connections_pair_unique', 'create unique index if not exists conversations_direct_connection_uidx', 'create unique index if not exists conversations_team_request_uidx', 'create unique index if not exists conversations_event_uidx', 'create unique index if not exists conversation_members_pair_uidx']) {
+  if (!conflictIndexes.includes(marker)) failures.push(`conflict target index migration missing: ${marker}`);
+}
+for (const marker of ['create unique index if not exists conversations_team_request_conflict_uidx', 'create unique index if not exists skills_name_conflict_uidx', 'create unique index if not exists interests_name_conflict_uidx']) {
+  if (!teamCreationConflictIndexes.includes(marker)) failures.push(`team creation conflict target missing: ${marker}`);
+}
+if (/on public\.conversations \((direct_connection_id|team_request_id|event_id)\)\s+where/.test(conflictIndexes)) {
+  failures.push('conversation ON CONFLICT targets require non-partial unique indexes');
 }
 
 const seed = readFileSync(join(root, 'supabase', 'seed.sql'), 'utf8').toLowerCase();

@@ -63,7 +63,7 @@ export function PostCard({ post, detail = false }: { post: Post; detail?: boolea
     },
   });
   const isOwner = Boolean(me.data?.userId && me.data.userId === post.authorId);
-  const openAuthor = () => post.authorType === 'person' && post.authorId ? router.push(`/people/${post.authorId}`) : post.authorType === 'club' && post.authorId ? router.push(`/discover/clubs/${post.authorId}`) : undefined;
+  const openAuthor = () => post.authorType === 'person' && post.authorId ? router.push(`/people/${post.authorId}`) : undefined;
   const votePoll = async (optionId: string, selected: boolean) => {
     setPollBusy(optionId);
     try {

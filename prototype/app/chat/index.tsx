@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { goBackOrReplace } from '@/lib/navigation';
-import { Badge, Body, Button, Card, Chip, IconButton, Screen, SectionHeader, StateView, TopBar } from '@/components/ui';
+import { Badge, Body, Button, Card, Chip, IconButton, Screen, SearchField, SectionHeader, StateView, TopBar } from '@/components/ui';
 import { apiPatch, apiPost } from '@/lib/api';
 import { apiQueryKey, useApiQuery } from '@/lib/api-hooks';
 import type { ChatRoom } from '@/lib/chat';
@@ -13,6 +13,8 @@ import { useAppStore } from '@/store/useAppStore';
 import { usePalette } from '@/theme/usePalette';
 
 type Tab = 'Chats' | 'Connections';
+interface PeopleSearchHit { id: string; title: string; excerpt?: string | null; scope: 'campus' | 'global'; }
+interface PeopleSearchResult { hits: PeopleSearchHit[]; degraded: boolean; }
 
 export default function ChatList() {
   const p = usePalette();
@@ -20,13 +22,26 @@ export default function ChatList() {
   const { tab: requestedTab } = useLocalSearchParams<{ tab?: string }>();
   const [tab, setTab] = useState<Tab>(requestedTab === 'Connections' ? 'Connections' : 'Chats');
   const [busy, setBusy] = useState<string | null>(null);
+  const [peopleQuery, setPeopleQuery] = useState('');
+  const [debouncedPeopleQuery, setDebouncedPeopleQuery] = useState('');
   const me = useApiQuery<{ userId: string }>(apiQueryKey('me'), '/me');
   const rooms = useApiQuery<ChatRoom[]>(apiQueryKey('chat-rooms'), '/chat/rooms');
   const connections = useApiQuery<ConnectionView[]>(apiQueryKey('connections'), '/connections');
+  const peopleSearch = useApiQuery<PeopleSearchResult>(
+    apiQueryKey('chat-people-search', debouncedPeopleQuery),
+    '/search',
+    { q: debouncedPeopleQuery, type: 'person', scope: 'global', limit: 30 },
+    { enabled: tab === 'Connections' && debouncedPeopleQuery.length >= 2, staleTime: 10_000 },
+  );
 
   useEffect(() => {
     if (requestedTab === 'Connections') setTab('Connections');
   }, [requestedTab]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedPeopleQuery(peopleQuery.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [peopleQuery]);
 
   const act = async (connection: ConnectionView, action: 'accept' | 'decline' | 'cancel' | 'end') => {
     setBusy(connection.id);
@@ -56,6 +71,22 @@ export default function ChatList() {
         return current.some((item) => item.id === room.id) ? current : [room, ...current];
       });
       router.push(`/chat/${room.id}`);
+    } catch (error) {
+      toast({ type: 'error', message: (error as Error).message });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const requestChat = async (person: PeopleSearchHit) => {
+    setBusy(`search:${person.id}`);
+    try {
+      const created = await apiPost<ConnectionView>('/connections', { targetUserId: person.id });
+      queryClient.setQueryData<ConnectionView[]>(apiQueryKey('connections'), (current) => [
+        created,
+        ...(current ?? []).filter((item) => item.otherUserId !== person.id),
+      ]);
+      toast({ type: 'success', message: 'Chat request sent.' });
     } catch (error) {
       toast({ type: 'error', message: (error as Error).message });
     } finally {
@@ -108,6 +139,35 @@ export default function ChatList() {
         </>
       ) : (
         <>
+          <SearchField value={peopleQuery} onChangeText={setPeopleQuery} placeholder="Search people by name or username" />
+          {peopleQuery.trim().length === 1 ? <StateView icon="search-outline" title="Keep typing" detail="Enter at least two characters." /> : null}
+          {debouncedPeopleQuery.length >= 2 ? (
+            <>
+              <SectionHeader title="Find people to chat" />
+              {peopleSearch.isLoading ? <StateView icon="hourglass-outline" title="Searching people" detail="Checking active, discoverable profiles…" />
+                : peopleSearch.isError ? <StateView icon="cloud-offline" tone="danger" title="People search unavailable" detail={peopleSearch.error.message} action="Retry" onAction={() => peopleSearch.refetch()} />
+                  : peopleSearch.data?.hits.length ? peopleSearch.data.hits.map((person) => {
+                    const connection = connections.data?.find((item) => item.otherUserId === person.id);
+                    const key = `search:${person.id}`;
+                    return (
+                      <Card key={person.id} style={{ marginBottom: 10 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11 }}>
+                          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#E9E6FF', alignItems: 'center', justifyContent: 'center' }}>
+                            <Ionicons name="person" size={21} color="#344054" />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: p.ink, fontSize: 15, fontWeight: '800' }}>{person.title}</Text>
+                            {person.excerpt ? <Body muted>{person.excerpt}</Body> : null}
+                          </View>
+                          {connection?.state === 'accepted' ? <Button compact label="Message" loading={busy === connection.id} onPress={() => openChat(connection)} />
+                            : connection?.state === 'pending' ? <Button compact variant="secondary" label={connection.direction === 'incoming' ? 'Review below' : 'Request sent'} disabled onPress={() => undefined} />
+                              : <Button compact label="Request chat" loading={busy === key} onPress={() => requestChat(person)} />}
+                        </View>
+                      </Card>
+                    );
+                  }) : <StateView icon="people-outline" title="No matching people" detail="Only active, discoverable, unblocked profiles appear." />}
+            </>
+          ) : null}
           <SectionHeader title="Chat requests and connections" />
           {connections.data?.length ? connections.data.map((connection) => (
             <Card key={connection.id} style={{ marginBottom: 10 }}>
