@@ -127,13 +127,13 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 
 - **Objective:** Retain attendee event fixtures and replace non-MVP areas with disabled “Coming soon” screens.
 - **Dependencies:** P1.2, P1.3.
-- **Affected:** `prototype/src/data/mockBackend.ts`, types, navigation, notifications, Notes/Clubs/Marketplace/Opportunities/Assistant screens.
+- **Affected:** `prototype/src/data/mockBackend.ts`, types, navigation, notifications, Notes/Clubs/Marketplace/Opportunities screens, and removal of the disabled AI assistant/pet surface.
 - **Acceptance:** Mock published/full/waitlisted/cancelled events work; no organizer/event-team fixture remains; disabled screens cannot perform actions.
 - **Tests:** Fixture contract, route, and Expo startup tests.
 - **Risk/rollback:** Additive fixture changes first.
 - **Estimate:** 3 hours.
 - **Gate:** Owner approves Phase 1 before backend work.
-- **Status:** [x] Complete — organizer/event-team mock state and types were removed in Phase 1; all remaining runtime mock session/data adapters were removed during Supabase cutover.
+- **Status:** [x] Complete — organizer/event-team mock state and types were removed in Phase 1; all remaining runtime mock session/data adapters were removed during Supabase cutover. AI is not enabled for MVP, so the assistant route, floating pet bot, pet preference state, and assistant API client are removed instead of exposing a non-functional surface.
 
 ## Phase 2 — Supabase Foundation and Schema
 
@@ -195,7 +195,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Split large migrations.
 - **Estimate:** 4 hours.
 - **Gate:** Schema approval.
-- **Status:** [x] Implementation complete through `0013` — social, team, CampusSphere chat, notifications, moderation, analytics, lifecycle, restrictions, retention, cursor pagination, preferences, and cooldown schema/RPCs exist. ChitChat remains separate and untouched.
+- **Status:** [x] Implementation complete through `0013`, with compatibility hardening through `0025` — social, team, CampusSphere chat, notifications, moderation, analytics, lifecycle, restrictions, retention, cursor pagination, preferences, and cooldown schema/RPCs exist. Migrations `0023`–`0025` preserve legacy chat fields and add uniquely named conflict arbiters for all explicit upsert targets, including exact partial predicates. ChitChat remains separate and untouched.
 
 ### P2.6 Seed the current mock data
 
@@ -245,7 +245,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Server/RLS enforcement is authoritative.
 - **Estimate:** 4 hours.
 - **Gate:** None.
-- **Status:** [x] Implementation complete — profile read/edit mapping, consent preservation, privacy/discoverability, suggestions, and block-aware server rules are wired. Owner cross-user verification belongs to Phase 10.
+- **Status:** [x] Implementation complete — profile read/edit mapping, consent preservation, privacy/discoverability, suggestions, and block-aware server rules are wired. Migration `0022` supplies privacy-safe real display labels for authorized post/comment, connection, chat, team-application, and following surfaces, preventing valid users from appearing as generic `Campus member`. Owner cross-user verification belongs to Phase 10.
 
 ## Phase 4 — Student Event Access
 
@@ -409,7 +409,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Ship persisted text, unread, reads, and reconnect first if needed.
 - **Estimate:** 4 hours.
 - **Gate:** Chat approval.
-- **Status:** [x] Implementation complete — chat covers text/file/link/GIF/sticker/system schema, idempotency, replies, edit/delete, reads, reactions, search, presence, Realtime invalidation, mute/report, private attachments, signed downloads, and cleanup.
+- **Status:** [x] Implementation complete — chat covers text/file/link/GIF/sticker/system schema, idempotency, replies, edit/delete, reads, reactions, search, presence, Realtime invalidation, mute/report, private attachments, signed downloads, and cleanup. Migrations `0023`–`0025` make direct/team/group/event room writers compatible with cloud tables that retain obsolete fields or incompatible legacy indexes, and harden every chat-related upsert target.
 
 ## Phase 8 — Notifications, Email, and Reminders
 
@@ -523,7 +523,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Split slow E2E from PR checks but retain release gate.
 - **Estimate:** 4 hours.
 - **Gate:** Technical approval.
-- **Status:** [~] Local automation complete — all 21 migrations pass static SQL validation; config, API contract, MVP coverage, two-source institution normalization, backend/mobile TypeScript, production web export, Android Hermes bundling, and `git diff --check` pass. Regression coverage locks resource uploads, deterministic navigation/onboarding, restriction-trigger ownership, absence of runtime mocks, React Native readonly `Event.NONE`, privacy-safe people discovery/recommendations, searchable chat requests, caught Ionicons font loading, tunnel startup, and Team Finder conflict targets. Owner must execute authenticated cloud database/RLS/concurrency/Realtime/device suites after pushing `0016`–`0021`; checklist is `docs/mvp_external_verification.md`.
+- **Status:** [~] Local automation complete — all 25 migrations pass static SQL validation; config, API contract, MVP coverage, two-source institution normalization, backend/mobile TypeScript, production web export, Android Hermes bundling, and `git diff --check` pass. Regression coverage locks resource uploads, deterministic navigation/onboarding, restriction-trigger ownership, absence of runtime mocks, React Native readonly `Event.NONE`, privacy-safe people discovery/recommendations, searchable chat requests, visible profile labels, caught Ionicons font loading, tunnel startup, Team Finder conflict targets, legacy conversation-participant compatibility, and all explicit SQL conflict arbiters. Owner must execute authenticated cloud database/RLS/concurrency/Realtime/device suites after pushing `0016`–`0025`; checklist is `docs/mvp_external_verification.md`.
 
 ### P10.2 Validate performance targets
 

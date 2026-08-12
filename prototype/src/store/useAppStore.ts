@@ -19,7 +19,6 @@ type AppState = {
   onboardingRoute: OnboardingRoute;
   scope: Scope;
   feedTab: FeedTab;
-  selectedPetId: string;
   darkMode: boolean;
   language: string;
   toast: Toast;
@@ -32,7 +31,6 @@ type AppState = {
   finishOnboarding: () => void;
   setScope: (scope: Scope) => void;
   setFeedTab: (tab: FeedTab) => void;
-  setSelectedPet: (petId: string) => void;
   setDarkMode: (value: boolean) => void;
   setLanguage: (value: string) => void;
   showToast: (toast: Toast) => void;
@@ -41,7 +39,7 @@ type AppState = {
 
 const initialData = (): Omit<AppState, keyof Pick<AppState,
   'setHydrated' | 'resolveSession' | 'failSessionResolution' | 'signIn' | 'signOut' | 'setOnboardingRoute' |
-  'finishOnboarding' | 'setScope' | 'setFeedTab' | 'setSelectedPet' | 'setDarkMode' |
+  'finishOnboarding' | 'setScope' | 'setFeedTab' | 'setDarkMode' |
   'setLanguage' | 'showToast' | 'resetDemo'>> => ({
   hydrated: false,
   sessionResolved: false,
@@ -50,7 +48,6 @@ const initialData = (): Omit<AppState, keyof Pick<AppState,
   onboardingRoute: 'university',
   scope: 'campus',
   feedTab: 'For you',
-  selectedPetId: 'meowbyte',
   darkMode: false,
   language: 'English',
   toast: null,
@@ -117,7 +114,6 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   finishOnboarding: () => set({ onboardingRoute: 'complete' }),
   setScope: (scope) => set({ scope }),
   setFeedTab: (feedTab) => set({ feedTab }),
-  setSelectedPet: (selectedPetId) => set({ selectedPetId }),
   setDarkMode: (darkMode) => set({ darkMode }),
   setLanguage: (language) => set({ language }),
   showToast: (toast) => set({ toast }),

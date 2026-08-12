@@ -18,6 +18,10 @@ const restrictionTriggerFix = readFileSync(join(migrationsDir, '0018_content_res
 const peopleDiscovery = readFileSync(join(migrationsDir, '0019_people_discovery_recommendations.sql'), 'utf8').toLowerCase();
 const conflictIndexes = readFileSync(join(migrationsDir, '0020_conflict_target_indexes.sql'), 'utf8').toLowerCase();
 const teamCreationConflictIndexes = readFileSync(join(migrationsDir, '0021_team_creation_conflict_targets.sql'), 'utf8').toLowerCase();
+const visibleLabels = readFileSync(join(migrationsDir, '0022_visible_profile_labels.sql'), 'utf8').toLowerCase();
+const legacyConversationParticipants = readFileSync(join(migrationsDir, '0023_legacy_conversation_participants.sql'), 'utf8').toLowerCase();
+const chatConflictArbiters = readFileSync(join(migrationsDir, '0024_chat_conflict_arbiters.sql'), 'utf8').toLowerCase();
+const allConflictArbiters = readFileSync(join(migrationsDir, '0025_all_conflict_arbiters.sql'), 'utf8').toLowerCase();
 
 for (const file of migrationFiles) {
   const sql = readFileSync(join(migrationsDir, file), 'utf8');
@@ -53,6 +57,21 @@ for (const marker of ['create unique index if not exists connections_pair_unique
 }
 for (const marker of ['create unique index if not exists conversations_team_request_conflict_uidx', 'create unique index if not exists skills_name_conflict_uidx', 'create unique index if not exists interests_name_conflict_uidx']) {
   if (!teamCreationConflictIndexes.includes(marker)) failures.push(`team creation conflict target missing: ${marker}`);
+}
+for (const marker of ['create or replace function public.visible_profile_labels_mobile', "'displayname', p.display_name", 'grant execute on function public.visible_profile_labels_mobile']) {
+  if (!visibleLabels.includes(marker)) failures.push(`visible profile labels migration missing: ${marker}`);
+}
+for (const marker of ["attribute.attname = 'participants'", "empty_value := '''[]''::jsonb'", "empty_value := format('''{}''::%s'", 'alter table public.conversations alter column participants set default']) {
+  if (!legacyConversationParticipants.includes(marker)) failures.push(`legacy conversation participants compatibility missing: ${marker}`);
+}
+if (/drop\s+column\s+(if\s+exists\s+)?participants/.test(legacyConversationParticipants)) {
+  failures.push('legacy conversation participants compatibility must preserve the column');
+}
+for (const marker of ['create unique index if not exists campusphere_connections_pair_uidx', 'create unique index if not exists campusphere_conversations_direct_uidx', 'create unique index if not exists campusphere_conversations_team_uidx', 'create unique index if not exists campusphere_conversations_event_uidx', 'create unique index if not exists campusphere_conversation_members_pair_uidx', 'create unique index if not exists campusphere_messages_sender_client_uidx']) {
+  if (!chatConflictArbiters.includes(marker)) failures.push(`chat conflict arbiter missing: ${marker}`);
+}
+for (const marker of ['campusphere_event_registrations_pair_uidx', 'campusphere_team_members_pair_uidx', 'campusphere_team_applications_active_uidx', 'campusphere_profiles_user_uidx', 'campusphere_skills_name_uidx', 'campusphere_interests_name_uidx', 'campusphere_notification_dedupe_uidx', 'campusphere_notification_outbox_dedupe_uidx', 'campusphere_restrictions_active_uidx', 'campusphere_notification_preferences_user_uidx', 'campusphere_user_devices_label_uidx', 'campusphere_event_bookmarks_pair_uidx', 'campusphere_event_reminders_pair_uidx', 'campusphere_post_bookmarks_pair_uidx', 'campusphere_post_reactions_pair_uidx', 'campusphere_post_poll_votes_pair_uidx', 'campusphere_following_pair_uidx', 'campusphere_user_blocks_pair_uidx', 'campusphere_rate_limit_bucket_uidx']) {
+  if (!allConflictArbiters.includes(marker)) failures.push(`general conflict arbiter missing: ${marker}`);
 }
 if (/on public\.conversations \((direct_connection_id|team_request_id|event_id)\)\s+where/.test(conflictIndexes)) {
   failures.push('conversation ON CONFLICT targets require non-partial unique indexes');

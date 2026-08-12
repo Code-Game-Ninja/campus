@@ -7,7 +7,6 @@ export type SessionRouteState = {
 };
 
 const UNDER_CONSTRUCTION_ROUTES: ReadonlyArray<{ prefix: string; feature: string; exact?: boolean }> = [
-  { prefix: '/assistant', feature: 'Campus Assistant' },
   { prefix: '/discover/clubs', feature: 'Clubs' },
   { prefix: '/discover/listings', feature: 'Marketplace and Lost & Found' },
   { prefix: '/discover/opportunities', feature: 'Opportunities' },

@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..', '..');
@@ -10,6 +10,10 @@ const resourcesMigration = readFileSync(join(backend, 'supabase', 'migrations', 
 const peopleDiscoveryMigration = readFileSync(join(backend, 'supabase', 'migrations', '0019_people_discovery_recommendations.sql'), 'utf8');
 const conflictIndexesMigration = readFileSync(join(backend, 'supabase', 'migrations', '0020_conflict_target_indexes.sql'), 'utf8');
 const teamCreationConflictIndexesMigration = readFileSync(join(backend, 'supabase', 'migrations', '0021_team_creation_conflict_targets.sql'), 'utf8');
+const visibleLabelsMigration = readFileSync(join(backend, 'supabase', 'migrations', '0022_visible_profile_labels.sql'), 'utf8');
+const legacyConversationParticipantsMigration = readFileSync(join(backend, 'supabase', 'migrations', '0023_legacy_conversation_participants.sql'), 'utf8');
+const chatConflictArbitersMigration = readFileSync(join(backend, 'supabase', 'migrations', '0024_chat_conflict_arbiters.sql'), 'utf8');
+const allConflictArbitersMigration = readFileSync(join(backend, 'supabase', 'migrations', '0025_all_conflict_arbiters.sql'), 'utf8');
 const campusCatalogSync = readFileSync(join(backend, 'scripts', 'sync-indian-institutions.mjs'), 'utf8');
 const api = readFileSync(join(prototype, 'src', 'lib', 'api.ts'), 'utf8');
 const navigation = readFileSync(join(prototype, 'src', 'lib', 'navigation.ts'), 'utf8');
@@ -72,6 +76,21 @@ for (const marker of ['connections_pair_unique', 'conversations_direct_connectio
 for (const marker of ['conversations_team_request_conflict_uidx', 'skills_name_conflict_uidx', 'interests_name_conflict_uidx']) {
   if (!teamCreationConflictIndexesMigration.includes(marker)) throw new Error(`Team creation conflict target index missing: ${marker}`);
 }
+for (const marker of ['visible_profile_labels_mobile', 'can_view_profile', 'can_access_conversation']) {
+  if (!visibleLabelsMigration.includes(marker)) throw new Error(`Visible profile labels migration missing: ${marker}`);
+}
+for (const marker of ["attribute.attname = 'participants'", 'alter column participants set default', "participants_type like '%[]'"]) {
+  if (!legacyConversationParticipantsMigration.includes(marker)) throw new Error(`Legacy conversation participants compatibility missing: ${marker}`);
+}
+for (const marker of ['campusphere_connections_pair_uidx', 'campusphere_conversations_direct_uidx', 'campusphere_conversation_members_pair_uidx']) {
+  if (!chatConflictArbitersMigration.includes(marker)) throw new Error(`Chat conflict arbiter missing: ${marker}`);
+}
+for (const marker of ['campusphere_event_registrations_pair_uidx', 'campusphere_team_members_pair_uidx', 'campusphere_team_applications_active_uidx', 'campusphere_notification_dedupe_uidx', 'campusphere_restrictions_active_uidx', 'campusphere_user_devices_label_uidx']) {
+  if (!allConflictArbitersMigration.includes(marker)) throw new Error(`General conflict arbiter missing: ${marker}`);
+}
+for (const marker of ['visibleProfileLabels([post.author_id]', 'visibleProfileLabels(rows.map((row) => row.author_id)', 'visibleProfileLabels(members.map((member) => member.user_id)', "visibleProfileLabels(rows.map((row) => row.applicant_id)", "visibleProfileLabels(rows.map((row) => row.requester_id === me.userId", 'visibleProfileLabels(rows.map((row) => row.followee_id)']) {
+  if (!api.includes(marker)) throw new Error(`Mobile visible profile label wiring missing: ${marker}`);
+}
 for (const marker of ["type: 'person'", 'Search people by name or username', 'Request chat', "connection?.state === 'accepted'"]) {
   if (!chatList.includes(marker)) throw new Error(`Chat people search UI missing: ${marker}`);
 }
@@ -108,8 +127,19 @@ for (const marker of ['feed_page', 'events_page', 'team_requests_page', 'notific
   if (!cloudLoad.includes(marker)) throw new Error(`Cloud load verification missing: ${marker}`);
 }
 
-for (const route of ['/assistant', '/discover/clubs', '/discover/listings', '/discover/opportunities']) {
+for (const route of ['/discover/clubs', '/discover/listings', '/discover/opportunities']) {
   if (!navigation.includes(`prefix: '${route}'`)) throw new Error(`MVP boundary missing route: ${route}`);
+}
+for (const path of [
+  join(prototype, 'app', 'assistant', 'index.tsx'),
+  join(prototype, 'src', 'components', 'AIPet.tsx'),
+  join(prototype, 'src', 'data', 'pets.ts'),
+  join(prototype, 'src', 'lib', 'assistant.ts'),
+]) {
+  if (existsSync(path)) throw new Error(`Disabled AI/pet feature still exists: ${relative(root, path)}`);
+}
+if (/AIPet|showAIPet|selectedPetId|setSelectedPet|prefix: '\/assistant'/.test(`${appProviders}\n${navigation}`)) {
+  throw new Error('Disabled AI/pet feature remains wired into mobile runtime.');
 }
 if (navigation.includes("prefix: '/discover/notes'")) throw new Error('Notes must not remain behind the under-construction route gate.');
 if (!navigation.includes('router.replace(fallback)') || navigation.includes('router.back()')) throw new Error('Back navigation must use deterministic replacement so stale onboarding history cannot reopen.');
