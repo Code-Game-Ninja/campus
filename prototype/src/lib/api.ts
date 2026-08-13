@@ -68,7 +68,18 @@ async function visibleProfileLabels(userIds: string[], token: string): Promise<M
   const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
   if (!uniqueIds.length) return new Map();
   const rows = await rpc<any[]>('visible_profile_labels_mobile', { p_user_ids: uniqueIds }, token);
-  return new Map(rows.map((row) => [row.userId, row]));
+  const campusIds = Array.from(new Set(rows.map((row) => row.campusId).filter(Boolean)));
+  const campuses = campusIds.length
+    ? await select<any>('campuses', postgrestQuery({ select: 'id,name', id: `in.(${campusIds.join(',')})` }), token)
+    : [];
+  const campusNames = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  return new Map(rows.map((row) => [row.userId, { ...row, campusName: campusNames.get(row.campusId) ?? null }]));
+}
+
+async function campusNameFor(campusId: string | null | undefined, token: string): Promise<string | null> {
+  if (!campusId) return null;
+  const rows = await select<any>('campuses', postgrestQuery({ select: 'name', id: `eq.${campusId}`, limit: 1 }), token);
+  return rows[0]?.name ?? null;
 }
 
 function pathParts(path: string): string[] { return path.split('/').filter(Boolean); }
@@ -91,6 +102,7 @@ function mapProfile(user: any, profile: any, skills: any[] = [], interests: any[
   return {
     userId: user?.id ?? profile?.user_id,
     displayName: profile?.display_name ?? null,
+    campusName: user?.campuses?.name ?? null,
     username: profile?.username ?? null,
     avatarUrl: profile?.avatar_key ?? null,
     course: profile?.course ?? null,
@@ -117,7 +129,7 @@ function mapPostRow(post: any, viewerId: string, commentCount = 0) {
     id: post.id,
     scope: post.visibility === 'global' ? 'global' : 'campus',
     authorMode: 'named',
-    author: { userId: post.author_id, displayName: post.author?.display_name ?? 'Campus member', avatarUrl: post.author?.avatar_key ?? null },
+    author: { userId: post.author_id, displayName: post.author?.display_name ?? 'Campus member', avatarUrl: post.author?.avatar_key ?? null, campusName: post.author?.campus_name ?? null },
     title: post.title ?? null,
     body: post.body,
     kind: post.post_kind ?? 'discussion',
@@ -153,7 +165,7 @@ async function resolvePostMedia(rows: any[], token: string): Promise<any[]> {
 
 function mapTeamRow(row: any, viewerId: string, application?: any) {
   return {
-    id: row.id, scope: 'campus', goalType: row.team_type, title: row.title, description: row.description,
+    id: row.id, scope: row.scope === 'global' ? 'global' : 'campus', campusName: row.campus_name ?? null, goalType: row.team_type, title: row.title, description: row.description,
     neededTags: row.team_request_skills?.map((item: any) => item.skills?.name).filter(Boolean) ?? [],
     timeWindowStart: row.application_deadline, timeWindowEnd: row.target_completion_date,
     capacity: row.desired_member_count, applicationPrompt: row.custom_questions?.[0] ?? null,
@@ -175,12 +187,15 @@ function mapApplicationRow(row: any) {
 }
 
 async function attachTeamSkills(row: any, token: string): Promise<any> {
-  const links = await select<any>('team_request_skills', postgrestQuery({ select: 'skill_id', team_request_id: `eq.${row.id}` }), token);
+  const [links, campusName] = await Promise.all([
+    select<any>('team_request_skills', postgrestQuery({ select: 'skill_id', team_request_id: `eq.${row.id}` }), token),
+    campusNameFor(row.campus_id, token),
+  ]);
   const names = await Promise.all(links.map(async (link) => {
     const skills = await select<any>('skills', postgrestQuery({ select: 'name', id: `eq.${link.skill_id}` }), token);
     return skills[0]?.name;
   }));
-  return { ...row, team_request_skills: names.filter(Boolean).map((name) => ({ skills: { name } })) };
+  return { ...row, campus_name: campusName, team_request_skills: names.filter(Boolean).map((name) => ({ skills: { name } })) };
 }
 
 async function mapConversationRow(row: any, token: string, viewerId: string) {
@@ -234,6 +249,7 @@ function mapResourceRow(row: any) {
     description: row.description ?? null,
     subjectId: row.subject_id ?? null,
     uploaderId: row.uploader_id,
+    campusName: row.campus_name ?? null,
     mimeType: row.mime_type ?? null,
     bytes: row.byte_size ?? null,
     ratingAvg: row.rating_avg == null ? null : Number(row.rating_avg),
@@ -248,7 +264,7 @@ async function getMe(token: string): Promise<any> {
   const session = await supabaseRequest<any>('auth', 'user', { accessToken: token });
   const users = await select<any>('users', postgrestQuery({ select: 'id,campus_id,status,onboarding_completed_at', id: `eq.${session.id}` }), token);
   const user = users[0] ?? { id: session.id, campus_id: null };
-  return { userId: session.id, campusId: user.campus_id, status: user.status, onboardingCompleted: Boolean(user.onboarding_completed_at) };
+  return { userId: session.id, campusId: user.campus_id, campusName: await campusNameFor(user.campus_id, token), status: user.status, onboardingCompleted: Boolean(user.onboarding_completed_at) };
 }
 
 async function getProfile(userId: string, token: string): Promise<any> {
@@ -258,7 +274,8 @@ async function getProfile(userId: string, token: string): Promise<any> {
   const skills = await select<any>('profile_skills', postgrestQuery({ select: 'skills(name)', user_id: `eq.${userId}` }), token);
   const interests = await select<any>('profile_interests', postgrestQuery({ select: 'interests(name)', user_id: `eq.${userId}` }), token);
   const links = await select<any>('profile_links', postgrestQuery({ select: 'link_type,url', user_id: `eq.${userId}`, order: 'display_order.asc' }), token);
-  return mapProfile(users[0], profiles[0], skills, interests, links, me.userId, me.campusId);
+  const user = users[0];
+  return mapProfile(user ? { ...user, campuses: { name: await campusNameFor(user.campus_id, token) } } : user, profiles[0], skills, interests, links, me.userId, me.campusId);
 }
 
 async function getEvent(eventId: string, token: string): Promise<any> {
@@ -315,7 +332,7 @@ export async function apiGet<T>(path: string, query: Record<string, string | num
         ]);
         const media = await resolvePostMedia(rawMedia, token);
         const label = labels.get(post.author_id);
-        return mapPostRow({ ...post, author: label ? { display_name: label.displayName, avatar_key: label.avatarUrl } : undefined, post_reactions: reactions, post_bookmarks: bookmarks, post_media: media, poll_state: pollState }, me.userId, comments.length);
+        return mapPostRow({ ...post, author: label ? { display_name: label.displayName, avatar_key: label.avatarUrl, campus_name: label.campusName } : undefined, post_reactions: reactions, post_bookmarks: bookmarks, post_media: media, poll_state: pollState }, me.userId, comments.length);
       }));
       return { items, nextCursor: page.length > limit ? encodeCursor(rows.at(-1), 'created_at') : null } as T;
     }
@@ -331,7 +348,7 @@ export async function apiGet<T>(path: string, query: Record<string, string | num
       ]);
       const media = await resolvePostMedia(rawMedia, token);
       const label = labels.get(rows[0].author_id);
-      return mapPostRow({ ...rows[0], author: label ? { display_name: label.displayName, avatar_key: label.avatarUrl } : undefined, post_media: media, poll_state: pollState }, me.userId, comments.length) as T;
+      return mapPostRow({ ...rows[0], author: label ? { display_name: label.displayName, avatar_key: label.avatarUrl, campus_name: label.campusName } : undefined, post_media: media, poll_state: pollState }, me.userId, comments.length) as T;
     }
     if (/^posts\/[^/]+\/comments$/.test(normalized)) {
       const rows = await select<any>('comments', postgrestQuery({ select: '*', post_id: `eq.${resourceId(normalized)}`, status: 'eq.published', order: 'created_at.asc', limit: query.limit ?? 100 }), token);
@@ -347,7 +364,45 @@ export async function apiGet<T>(path: string, query: Record<string, string | num
     if (normalized === 'chat/rooms') { const me = await getMe(token); const rows = await select<any>('conversations', postgrestQuery({ select: '*', order: 'updated_at.desc' }), token); return Promise.all(rows.map((row) => mapConversationRow(row, token, me.userId))) as Promise<T>; }
     if (/^chat\/rooms\/[^/]+$/.test(normalized)) { const me = await getMe(token); const rows = await select<any>('conversations', postgrestQuery({ select: '*', id: `eq.${resourceId(normalized)}` }), token); return rows[0] ? mapConversationRow(rows[0], token, me.userId) as Promise<T> : null as T; }
     if (/^chat\/rooms\/[^/]+\/messages$/.test(normalized)) { const rows = await select<any>('messages', postgrestQuery({ select: '*,message_attachments(*)', conversation_id: `eq.${resourceId(normalized)}`, status: 'eq.visible', order: 'created_at.desc', limit: query.limit ?? 100 }), token); return { items: rows.map(mapMessageRow), nextCursor: null } as T; }
-    if (normalized === 'notifications') { const cursor = decodeCursor(query.cursor); const rows = await rpc<any[]>('notifications_page', { p_limit: Number(query.limit ?? 100), p_before_created_at: cursor.timestamp, p_before_id: cursor.id, p_unread_only: query.unreadOnly === 'true' }, token); return rows.map((row) => ({ id: row.id, recipientId: row.user_id, eventType: row.type, title: row.payload?.title ?? row.type, body: row.payload?.body ?? '', read: Boolean(row.in_app_read_at), referenceType: row.subject_type, referenceId: row.subject_id, createdAt: row.created_at })) as T; }
+    if (normalized === 'notifications') {
+      const cursor = decodeCursor(query.cursor);
+      const rows = await rpc<any[]>('notifications_page', { p_limit: Number(query.limit ?? 100), p_before_created_at: cursor.timestamp, p_before_id: cursor.id, p_unread_only: query.unreadOnly === 'true' }, token);
+      const labels = await visibleProfileLabels(rows.map((row) => row.actor_id).filter(Boolean), token);
+      return rows.map((row) => {
+        const actor = row.actor_id ? labels.get(row.actor_id) : undefined;
+        const actorName = actor?.displayName ?? null;
+        const payloadTitle = typeof row.payload?.title === 'string' ? row.payload.title : '';
+        const payloadBody = typeof row.payload?.body === 'string' ? row.payload.body : '';
+        const titleByType: Record<string, string> = {
+          connection_request: actorName ? `${actorName} sent you a connection request` : 'New connection request',
+          connection_accepted: actorName ? `${actorName} accepted your connection request` : 'Connection request accepted',
+          chat_message: actorName ? `${actorName} sent you a message` : 'New message',
+          team_application: actorName ? `${actorName} applied to your team` : 'New team application',
+          team_invitation: actorName ? `${actorName} invited you to a team` : 'New team invitation',
+          team_application_accepted: 'Team application accepted',
+          team_application_rejected: 'Team application declined',
+          post_reaction: actorName ? `${actorName} reacted to your post` : 'Someone reacted to your post',
+          comment: actorName ? `${actorName} commented on your post` : 'New comment on your post',
+        };
+        const title = payloadTitle || titleByType[row.type] || row.type;
+        const body = payloadBody || (row.type === 'chat_message' ? 'Open conversation to view the message.' : row.type.startsWith('connection_') ? 'Open Connections to review this update.' : 'Tap to view this activity.');
+        return {
+          id: row.id,
+          campusId: row.campus_id ?? null,
+          recipientId: row.user_id,
+          actorId: row.actor_id ?? null,
+          actorDisplayName: actorName,
+          actorAvatarUrl: actor?.avatarUrl ?? null,
+          eventType: row.type,
+          title,
+          body,
+          read: Boolean(row.in_app_read_at),
+          referenceType: row.subject_type,
+          referenceId: row.subject_id,
+          createdAt: row.created_at,
+        };
+      }) as T;
+    }
     if (normalized === 'notifications/preferences') { const me = await getMe(token); const rows = await select<any>('notification_preferences', postgrestQuery({ select: '*', user_id: `eq.${me.userId}` }), token); const row = rows[0] ?? { user_id: me.userId, in_app_enabled: true, push_enabled: false, email_enabled: true, category_settings: {}, updated_at: new Date(0).toISOString() }; const eventTypes = ['post_reaction', 'comment', 'event_reminder', 'club_update', 'chat_message', 'security_alert']; return eventTypes.map((eventType) => { const category = row.category_settings?.[eventType] ?? {}; return { id: `${row.user_id}:${eventType}`, campusId: me.campusId, userId: row.user_id, eventType, inApp: category.in_app ?? row.in_app_enabled, push: category.push ?? row.push_enabled, emailDigest: category.email ?? row.email_enabled, updatedAt: row.updated_at }; }) as T; }
     if (normalized === 'blocks') { return select<any>('user_blocks', postgrestQuery({ select: 'blocked_id,created_at', order: 'created_at.desc' }), token).then((rows) => rows.map((row) => ({ blockedUserId: row.blocked_id, createdAt: row.created_at }))) as Promise<T>; }
     if (normalized === 'follows') { const me = await getMe(token); const rows = await select<any>('following', postgrestQuery({ select: 'followee_id,created_at', follower_id: `eq.${me.userId}`, order: 'created_at.desc' }), token); const labels = await visibleProfileLabels(rows.map((row) => row.followee_id), token); return rows.map((row) => ({ targetType: 'person', targetId: row.followee_id, displayName: labels.get(row.followee_id)?.displayName ?? 'Campus member', followedAt: row.created_at })) as T; }
@@ -363,8 +418,8 @@ export async function apiGet<T>(path: string, query: Record<string, string | num
     }
     if (normalized === 'account/requests') { const rows = await select<any>('account_requests', postgrestQuery({ select: '*', order: 'requested_at.desc', limit: 100 }), token); return rows.map((row) => ({ id: row.id, type: row.request_type, status: row.status, targetUniversityId: row.target_campus_id, reason: row.reason, requestedAt: row.requested_at, updatedAt: row.updated_at, completedAt: row.completed_at })) as T; }
     if (normalized === 'bookmarks') { const me = await getMe(token); const [posts, events, resources] = await Promise.all([select<any>('post_bookmarks', postgrestQuery({ select: 'post_id', user_id: `eq.${me.userId}` }), token), select<any>('event_bookmarks', postgrestQuery({ select: 'event_id', user_id: `eq.${me.userId}` }), token), select<any>('resource_bookmarks', postgrestQuery({ select: 'resource_id', user_id: `eq.${me.userId}` }), token)]); return [...posts.map((r) => ({ target_type: 'post', target_id: r.post_id })), ...events.map((r) => ({ target_type: 'event', target_id: r.event_id })), ...resources.map((r) => ({ target_type: 'resource', target_id: r.resource_id }))] as T; }
-    if (normalized === 'resources') { const rows = await rpc<any[]>('list_resources_mobile', { p_mine: query.mine === 'true', p_limit: Number(query.limit ?? 100) }, token); return { items: rows.map(mapResourceRow), nextCursor: null } as T; }
-    if (/^resources\/[^/]+$/.test(normalized)) { const rows = await select<any>('resources', postgrestQuery({ select: '*', id: `eq.${resourceId(normalized)}`, deleted_at: 'is.null', limit: 1 }), token); if (!rows[0]) throw new ApiError('Resource unavailable.', 404, 'RESOURCE_NOT_FOUND'); return mapResourceRow(rows[0]) as T; }
+    if (normalized === 'resources') { const rows = await rpc<any[]>('list_resources_mobile', { p_mine: query.mine === 'true', p_limit: Number(query.limit ?? 100) }, token); const campusIds = Array.from(new Set(rows.map((row) => row.campus_id).filter(Boolean))); const campuses = campusIds.length ? await select<any>('campuses', postgrestQuery({ select: 'id,name', id: `in.(${campusIds.join(',')})` }), token) : []; const names = new Map(campuses.map((campus) => [campus.id, campus.name])); return { items: rows.map((row) => mapResourceRow({ ...row, campus_name: names.get(row.campus_id) ?? null })), nextCursor: null } as T; }
+    if (/^resources\/[^/]+$/.test(normalized)) { const rows = await select<any>('resources', postgrestQuery({ select: '*', id: `eq.${resourceId(normalized)}`, deleted_at: 'is.null', limit: 1 }), token); if (!rows[0]) throw new ApiError('Resource unavailable.', 404, 'RESOURCE_NOT_FOUND'); return mapResourceRow({ ...rows[0], campus_name: await campusNameFor(rows[0].campus_id, token) }) as T; }
     if (/^resources\/[^/]+\/download$/.test(normalized)) { const id = resourceId(normalized); const rows = await select<any>('resources', postgrestQuery({ select: 'storage_key', id: `eq.${id}`, deleted_at: 'is.null' }), token); if (!rows[0]?.storage_key) throw new ApiError('Resource unavailable.', 404, 'RESOURCE_NOT_FOUND'); return { downloadUrl: await createStorageSignedUrl(RESOURCE_BUCKET, rows[0].storage_key, token, 300), expiresAt: new Date(Date.now() + 300_000).toISOString() } as T; }
     if (normalized === 'universities') {
       const limit = Number(query.limit ?? 25);
@@ -403,9 +458,9 @@ export async function apiRequest<T>(path: string, init: { method: 'POST' | 'PATC
       p_age_confirmed: Boolean(body.ageConfirmed), p_terms_accepted: Boolean(body.termsAccepted), p_privacy_accepted: Boolean(body.privacyAccepted), p_skills: body.skills ?? [],
       p_interests: body.interests ?? [], p_link_label: body.links?.[0]?.label ?? null, p_link_url: body.links?.[0]?.url ?? null,
     }, token);
-    if (normalized === 'posts' && init.method === 'POST') { const me = await getMe(token); const requestedVisibility = body.visibility ?? body.scope ?? 'campus'; const row = await rpc<any>('create_post_mobile', { p_title: body.title ?? null, p_body: body.body, p_kind: body.kind ?? 'discussion', p_visibility: requestedVisibility === 'public' ? 'global' : requestedVisibility, p_event_id: body.eventId ?? null, p_team_request_id: body.teamRequestId ?? null, p_media: body.media ?? [], p_poll: body.poll ?? null }, token); return mapPostRow({ ...row, author: { display_name: 'You', avatar_key: null } }, me.userId) as T; }
+    if (normalized === 'posts' && init.method === 'POST') { const me = await getMe(token); const requestedVisibility = body.visibility ?? body.scope ?? 'campus'; const row = await rpc<any>('create_post_mobile', { p_title: body.title ?? null, p_body: body.body, p_kind: body.kind ?? 'discussion', p_visibility: requestedVisibility === 'public' ? 'global' : requestedVisibility, p_event_id: body.eventId ?? null, p_team_request_id: body.teamRequestId ?? null, p_media: body.media ?? [], p_poll: body.poll ?? null }, token); return mapPostRow({ ...row, author: { display_name: 'You', avatar_key: null, campus_name: me.campusName } }, me.userId) as T; }
     if (/^posts\/[^/]+\/comments$/.test(normalized) && init.method === 'POST') { const me = await getMe(token); const row = await rpc<any>('create_comment_mobile', { p_post_id: resourceId(normalized), p_body: body.body, p_parent_comment_id: body.parentId ?? null }, token); return { ...row, postId: row.post_id, parentId: row.parent_comment_id, author: { userId: me.userId, displayName: 'You', avatarUrl: null }, createdAt: row.created_at } as T; }
-    if (/^posts\/[^/]+$/.test(normalized) && init.method === 'PATCH') { const row = await rpc<any>('update_post_mobile', { p_post_id: resourceId(normalized), p_body: body.body ?? null, p_visibility: body.visibility ?? null }, token); const me = await getMe(token); return mapPostRow({ ...row, author: { display_name: 'You', avatar_key: null } }, me.userId) as T; }
+    if (/^posts\/[^/]+$/.test(normalized) && init.method === 'PATCH') { const row = await rpc<any>('update_post_mobile', { p_post_id: resourceId(normalized), p_body: body.body ?? null, p_visibility: body.visibility ?? null }, token); const me = await getMe(token); return mapPostRow({ ...row, author: { display_name: 'You', avatar_key: null, campus_name: me.campusName } }, me.userId) as T; }
     if (/^posts\/[^/]+$/.test(normalized) && init.method === 'DELETE') return rpc<T>('delete_post_mobile', { p_post_id: resourceId(normalized) }, token);
     if (/^posts\/[^/]+\/reactions$/.test(normalized)) return rpc<T>('set_post_reaction_mobile', { p_post_id: resourceId(normalized), p_enabled: Boolean(body.enabled) }, token);
     if (/^posts\/[^/]+\/poll-votes\/[^/]+$/.test(normalized) && init.method === 'POST') return rpc<T>('set_post_poll_vote_mobile', { p_option_id: finalId(normalized), p_selected: Boolean(body.selected) }, token);
@@ -439,6 +494,7 @@ export async function apiRequest<T>(path: string, init: { method: 'POST' | 'PATC
     if (/^follows\/people\/[^/]+$/.test(normalized) && (init.method === 'POST' || init.method === 'DELETE')) return rpc<T>('set_follow_mobile', { p_target_user_id: finalId(normalized), p_following: init.method === 'POST' }, token);
     if (/^blocks\/[^/]+$/.test(normalized) && init.method === 'DELETE') return rpc<T>('set_block_mobile', { p_target_user_id: resourceId(normalized), p_blocked: false }, token);
     if (/^notifications\/[^/]+\/read$/.test(normalized) && init.method === 'PATCH') return rpc<T>('mark_notification_read_mobile', { p_notification_id: resourceId(normalized) }, token);
+    if (/^notifications\/[^/]+$/.test(normalized) && init.method === 'DELETE') return rpc<T>('delete_notification_mobile', { p_notification_id: resourceId(normalized) }, token);
     if (normalized === 'notifications/preferences' && init.method === 'PATCH') { const me = await getMe(token); await rpc<any>('update_notification_preferences', { p_category: body.eventType, p_in_app: body.inApp ?? null, p_email: body.emailDigest ?? null, p_push: body.push ?? null, p_quiet_start: body.quietStart ?? null, p_quiet_end: body.quietEnd ?? null, p_timezone: body.timezone ?? null }, token); return { id: `${me.userId}:${body.eventType}`, campusId: me.campusId, userId: me.userId, eventType: body.eventType, inApp: body.inApp ?? true, push: body.push ?? false, emailDigest: body.emailDigest ?? true, updatedAt: new Date().toISOString() } as T; }
     if (normalized.startsWith('notifications/devices') && init.method === 'POST') return rpc<T>('register_device_mobile', { p_platform: body.platform, p_push_token: body.token, p_device_label: body.installationId }, token);
     if (normalized.startsWith('notifications/devices') && init.method === 'DELETE') return rpc<T>('disable_device_mobile', { p_device_label: finalId(normalized) }, token);

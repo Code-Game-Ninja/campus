@@ -172,6 +172,7 @@ export default function PersonProfile() {
           </View>
           <Text style={{ color: p.ink, fontSize: 24, fontWeight: '900', marginTop: 13 }}>{profile.displayName ?? 'Campus member'}</Text>
           <Text style={{ color: p.muted, marginTop: 5 }}>{profile.department ?? 'Department private'}{profile.studyYear ? ` · Year ${profile.studyYear}` : ''}</Text>
+          <Text style={{ color: p.muted, marginTop: 4 }}>{profile.campusName ?? (profile.isCrossCampus ? 'Global CampusSphere member' : 'Campus not selected')}</Text>
           <View style={{ marginTop: 9 }}><Badge label={profile.discoverable ? 'Open to recommendations' : 'Not discoverable'} tone={profile.discoverable ? 'success' : 'neutral'} /></View>
           {!profile.isSelf ? (
             <View style={{ width: '100%', marginTop: 14, gap: 9 }}>

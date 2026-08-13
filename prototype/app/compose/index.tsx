@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { goBackOrReplace } from '@/lib/navigation';
 import { Body, Button, Chip, Field, IconButton, Screen, Segmented, TopBar } from '@/components/ui';
@@ -7,7 +8,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { usePalette } from '@/theme/usePalette';
 import { apiPost, removePostMedia, uploadPostMedia } from '@/lib/api';
 import { apiQueryKey, useApiQuery } from '@/lib/api-hooks';
-import { pickPostMedia, type PickedPostMedia } from '@/lib/document-picker';
+import { pickPostDocument, pickPostImage, type PickedPostMedia } from '@/lib/document-picker';
 import { queryClient } from '@/lib/query';
 import type { Scope } from '@/types';
 
@@ -34,10 +35,20 @@ export default function Compose() {
   const [pollCloses, setPollCloses] = useState('');
   const me = useApiQuery<{ userId: string }>(apiQueryKey('me'), '/me');
 
-  const chooseMedia = async (): Promise<void> => {
+  const chooseImage = async (replaceIndex?: number): Promise<void> => {
+    try {
+      if (replaceIndex === undefined && media.length >= 5) throw new Error('A post can contain at most five uploaded files.');
+      const picked = await pickPostImage();
+      if (picked) setMedia((current) => replaceIndex === undefined ? [...current, picked] : current.map((item, index) => index === replaceIndex ? picked : item));
+    } catch (error) {
+      showToast({ type: 'error', message: (error as Error).message });
+    }
+  };
+
+  const chooseDocument = async (): Promise<void> => {
     try {
       if (media.length >= 5) throw new Error('A post can contain at most five uploaded files.');
-      const picked = await pickPostMedia();
+      const picked = await pickPostDocument();
       if (picked) setMedia((current) => [...current, picked]);
     } catch (error) {
       showToast({ type: 'error', message: (error as Error).message });
@@ -94,9 +105,9 @@ export default function Compose() {
       <Field label="Post" value={body} onChangeText={(value) => setBody(value.slice(0, 2000))} placeholder="Share something useful, ask a question, or start a discussion…" multiline />
       <Text style={{ color: p.muted, fontSize: 11, textAlign: 'right', marginTop: -14 }}>{body.length}/2000</Text>
       <View style={{ backgroundColor: p.surface, borderWidth: 1, borderColor: p.line, borderRadius: 15, padding: 14, gap: 10 }}>
-        <Button variant="ghost" icon="images-outline" label="Add image or PDF" disabled={media.length >= 5 || posting} onPress={() => void chooseMedia()} />
-        {media.map((file, index) => <View key={`${file.uri}-${index}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}><Text numberOfLines={1} style={{ flex: 1, color: p.text, fontSize: 12, fontWeight: '700' }}>{file.name} · {Math.ceil(file.size / 1024)} KB</Text><Button compact variant="ghost" label="Remove" onPress={() => setMedia((current) => current.filter((_, itemIndex) => itemIndex !== index))} /></View>)}
-        <Body muted>Up to five JPG, PNG, WEBP, or PDF files. First URL in post becomes private link preview metadata.</Body>
+        <View style={{ flexDirection: 'row', gap: 8 }}><View style={{ flex: 1 }}><Button variant="ghost" icon="image-outline" label="Add photo" disabled={media.length >= 5 || posting} onPress={() => void chooseImage()} /></View><View style={{ flex: 1 }}><Button variant="ghost" icon="document-outline" label="Add PDF" disabled={media.length >= 5 || posting} onPress={() => void chooseDocument()} /></View></View>
+        {media.map((file, index) => file.mediaType === 'image' ? <View key={`${file.uri}-${index}`} style={{ gap: 8 }}><Image source={{ uri: file.uri }} style={{ width: '100%', aspectRatio: 4 / 5, borderRadius: 13, backgroundColor: p.brandSoft }} resizeMode="cover" /><View style={{ flexDirection: 'row', gap: 8 }}><Button compact variant="ghost" label="Edit crop" onPress={() => void chooseImage(index)} /><Button compact variant="ghost" label="Remove" onPress={() => setMedia((current) => current.filter((_, itemIndex) => itemIndex !== index))} /></View></View> : <View key={`${file.uri}-${index}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}><Ionicons name="document-text-outline" size={20} color={p.muted} /><Text numberOfLines={1} style={{ flex: 1, color: p.text, fontSize: 12, fontWeight: '700' }}>{file.name} · {Math.ceil(file.size / 1024)} KB</Text><Button compact variant="ghost" label="Remove" onPress={() => setMedia((current) => current.filter((_, itemIndex) => itemIndex !== index))} /></View>)}
+        <Body muted>Up to five files. Photos use Instagram-style 4:5 crop preview. First URL in post becomes private link preview metadata.</Body>
       </View>
       <View style={{ backgroundColor: p.surface, borderWidth: 1, borderColor: p.line, borderRadius: 15, padding: 14, gap: 11 }}>
         <Button variant="ghost" icon="stats-chart-outline" label={pollEnabled ? 'Remove poll' : 'Add poll'} onPress={() => setPollEnabled((value) => !value)} />

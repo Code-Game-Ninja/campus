@@ -7,6 +7,7 @@ export interface ApiResource {
   description: string | null;
   subjectId: string | null;
   uploaderId: string;
+  campusName?: string | null;
   mimeType: string | null;
   bytes: number | null;
   ratingAvg: number | null;
@@ -18,5 +19,5 @@ export interface ApiResource {
 
 export function mapResource(item: ApiResource): Resource & { sourceType: 'pdf' } {
   const sourceType: Resource['sourceType'] = item.mimeType?.includes('pdf') ? 'pdf' : 'pdf';
-  return { id: item.id, title: item.title, subject: item.subjectId ?? 'Campus resource', department: 'Campus', semester: new Date(item.createdAt).getFullYear().toString(), uploader: item.uploaderId, description: item.description ?? 'Campus-contributed study material.', rating: item.ratingAvg ?? 0, saves: 0, status: 'approved', accent: '#FFF7D6', ownerId: item.uploaderId, sourceType };
+  return { id: item.id, title: item.title, subject: item.subjectId ?? 'Campus resource', department: item.campusName ?? 'Campus not selected', semester: new Date(item.createdAt).getFullYear().toString(), uploader: item.uploaderId, description: item.description ?? 'Campus-contributed study material.', rating: item.ratingAvg ?? 0, saves: 0, status: 'approved', accent: '#FFF7D6', ownerId: item.uploaderId, sourceType };
 }

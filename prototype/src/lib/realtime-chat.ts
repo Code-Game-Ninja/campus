@@ -94,6 +94,11 @@ export function subscribeToRoomMessages(
             schema: 'public',
             table: 'chat_message_events',
             filter: `room_id=eq.${roomId}`,
+          }, {
+            event: '*',
+            schema: 'public',
+            table: 'messages',
+            filter: `conversation_id=eq.${roomId}`,
           }],
         },
         access_token: token,

@@ -1,5 +1,5 @@
 import { PropsWithChildren, ReactNode, useState } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, Pressable, ScrollView, StyleProp, Switch, Text, TextInput, View, ViewStyle } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleProp, Switch, Text, TextInput, View, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,9 +13,11 @@ type ScreenProps = PropsWithChildren<{
   style?: StyleProp<ViewStyle>;
   keyboardAvoiding?: boolean;
   keyboardVerticalOffset?: number;
+  refreshing?: boolean;
+  onRefresh?: () => void | Promise<void>;
 }>;
 
-export function Screen({ children, scroll = true, style, keyboardAvoiding = true, keyboardVerticalOffset = 0 }: ScreenProps) {
+export function Screen({ children, scroll = true, style, keyboardAvoiding = true, keyboardVerticalOffset = 0, refreshing = false, onRefresh }: ScreenProps) {
   const p = usePalette();
   const content = <View style={[{ flex: 1, paddingHorizontal: 16, paddingBottom: 116 }, style]}>{children}</View>;
   const body = scroll ? (
@@ -24,6 +26,7 @@ export function Screen({ children, scroll = true, style, keyboardAvoiding = true
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
       showsVerticalScrollIndicator={false}
+      refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} colors={[p.brand]} tintColor={p.brand} /> : undefined}
     >
       {content}
     </ScrollView>

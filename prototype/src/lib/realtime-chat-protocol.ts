@@ -11,6 +11,7 @@ interface ChangePayload {
     table?: unknown;
     type?: unknown;
     record?: Record<string, unknown>;
+    old_record?: Record<string, unknown>;
   };
   response?: { status?: unknown };
   status?: unknown;
@@ -46,17 +47,18 @@ export function parseRealtimeFrame(
   if (event === 'phx_error' || event === 'phx_close') return { kind: 'error' };
   if (event !== 'postgres_changes') return { kind: 'ignore' };
 
-  const record = payload?.data?.record;
-  if (
-    payload?.data?.table !== 'chat_message_events'
-    || payload.data.type !== 'INSERT'
-    || record?.room_id !== roomId
-    || typeof record.id !== 'string'
-  ) {
-    return { kind: 'ignore' };
+  const table = payload?.data?.table;
+  const changeType = String(payload?.data?.type ?? '');
+  const record = payload?.data?.record ?? payload?.data?.old_record;
+  if (!record || typeof record.id !== 'string') return { kind: 'ignore' };
+  if (table === 'chat_message_events' && record.room_id === roomId) {
+    return { kind: 'message-event', eventId: `event:${record.id}`, eventType: String(record.event_type ?? 'message_created') };
   }
-
-  return { kind: 'message-event', eventId: record.id, eventType: String(record.event_type ?? 'message_created') };
+  if (table === 'messages' && record.conversation_id === roomId) {
+    const version = String(record.updated_at ?? record.created_at ?? record.status ?? '');
+    return { kind: 'message-event', eventId: `message:${changeType}:${record.id}:${version}`, eventType: changeType.toLowerCase() };
+  }
+  return { kind: 'ignore' };
 }
 
 export function encodePhoenixMessage(

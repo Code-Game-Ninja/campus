@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { requireNativeModule } from 'expo-modules-core';
+import * as ImagePicker from 'expo-image-picker';
 
 export const MAX_RESOURCE_BYTES = 50 * 1024 * 1024;
 
@@ -175,10 +176,10 @@ async function pickChatAttachmentOnWeb(): Promise<PickedChatAttachment | null> {
   });
 }
 
-function normalizePostMedia(asset: NativeDocumentAsset, blob?: Blob): PickedPostMedia {
-  const name = asset.name?.trim() ?? '';
+function normalizePostMedia(asset: NativeDocumentAsset, blob?: Blob, fallbackMimeType?: string, fallbackName?: string): PickedPostMedia {
+  const name = asset.name?.trim() || fallbackName?.trim() || '';
   const extension = name.split('.').pop()?.toLowerCase() ?? '';
-  const mimeType = POST_MIME_BY_EXTENSION[extension];
+  const mimeType = POST_MIME_BY_EXTENSION[extension] ?? (fallbackMimeType && POST_MEDIA_MIME_TYPES.includes(fallbackMimeType as PostMediaMimeType) ? fallbackMimeType as PostMediaMimeType : undefined);
   if (!name || !mimeType) throw new Error('Choose a JPG, PNG, WEBP, or PDF file.');
   const size = blob?.size || asset.size || 0;
   if (!Number.isFinite(size) || size <= 0) throw new Error('Could not read this file size. Choose another file.');
@@ -192,6 +193,25 @@ async function pickPostMediaOnWeb(): Promise<PickedPostMedia | null> {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.jpg,.jpeg,.png,.webp,.pdf';
+    input.multiple = false;
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return resolve(null);
+      try {
+        resolve(normalizePostMedia({ name: file.name, size: file.size, mimeType: file.type }, file));
+      } catch (error) {
+        reject(error);
+      }
+    };
+    input.click();
+  });
+}
+
+async function pickPostDocumentOnWeb(): Promise<PickedPostMedia | null> {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,application/pdf';
     input.multiple = false;
     input.onchange = () => {
       const file = input.files?.[0];
@@ -257,6 +277,34 @@ export async function pickPostMedia(): Promise<PickedPostMedia | null> {
     throw new Error('Document picker is unavailable in this build. Rebuild the app with expo-document-picker installed.');
   }
   const result = await picker.getDocumentAsync({ type: POST_MEDIA_MIME_TYPES, copyToCacheDirectory: true, multiple: false });
+  if (result.canceled || result.type === 'cancel') return null;
+  return normalizePostMedia(result.assets?.[0] ?? result);
+}
+
+/** Pick/crop one post image. Android shows native crop, zoom, and rotate controls. */
+export async function pickPostImage(): Promise<PickedPostMedia | null> {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    allowsEditing: true,
+    aspect: [4, 5],
+    quality: 0.9,
+  });
+  if (result.canceled || !result.assets[0]) return null;
+  const asset = result.assets[0];
+  const name = asset.fileName?.trim() || 'campussphere-photo.jpg';
+  return normalizePostMedia({ uri: asset.uri, name, size: asset.fileSize, mimeType: asset.mimeType }, undefined, asset.mimeType, name);
+}
+
+/** Pick one PDF for a post without invoking image crop UI. */
+export async function pickPostDocument(): Promise<PickedPostMedia | null> {
+  if (Platform.OS === 'web') return pickPostDocumentOnWeb();
+  let picker: ExpoDocumentPickerModule;
+  try {
+    picker = requireNativeModule<ExpoDocumentPickerModule>('ExpoDocumentPicker');
+  } catch {
+    throw new Error('Document picker is unavailable in this build. Rebuild the app with expo-document-picker installed.');
+  }
+  const result = await picker.getDocumentAsync({ type: ['application/pdf'], copyToCacheDirectory: true, multiple: false });
   if (result.canceled || result.type === 'cancel') return null;
   return normalizePostMedia(result.assets?.[0] ?? result);
 }

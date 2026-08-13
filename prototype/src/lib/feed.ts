@@ -8,7 +8,7 @@ export interface ApiPost {
   id: string;
   scope: Scope;
   authorMode: 'named' | 'official';
-  author: { userId: string; displayName: string; avatarUrl: string | null };
+  author: { userId: string; displayName: string; avatarUrl: string | null; campusName?: string | null };
   title: string | null;
   body: string;
   kind: Post['kind'];
@@ -31,7 +31,7 @@ export interface ApiPost {
 }
 
 export interface FeedPage { items: ApiPost[]; nextCursor: string | null }
-export interface MeView { userId: string; campusId: string }
+export interface MeView { userId: string; campusId: string | null; campusName?: string | null }
 export interface ApiComment {
   id: string;
   postId: string;
@@ -81,7 +81,7 @@ export function mapPost(post: ApiPost, campus: string): Post {
     authorType: 'person',
     initials,
     time: relativeTime(post.editedAt ?? post.publishedAt, Boolean(post.editedAt)),
-    campus: post.scope === 'campus' ? campus : 'Global',
+    campus: post.author.campusName ?? (post.scope === 'campus' ? campus : 'Global CampusSphere'),
     scope: post.scope,
     kind: post.kind,
     title: post.title ?? undefined,

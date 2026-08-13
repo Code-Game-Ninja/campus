@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { AppState, KeyboardAvoidingView, Linking, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, FlatList, KeyboardAvoidingView, Linking, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { goBackOrReplace } from '@/lib/navigation';
 import { Button, IconButton, Screen, StateView, TopBar } from '@/components/ui';
 import { apiDelete, apiPatch, apiPost, apiPut, getChatAttachmentUrl, removeChatAttachment, uploadChatAttachment } from '@/lib/api';
@@ -16,6 +17,7 @@ import { usePalette } from '@/theme/usePalette';
 export default function Conversation() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const p = usePalette();
+  const insets = useSafeAreaInsets();
   const toast = useAppStore((s) => s.showToast);
   const [text, setText] = useState('');
   const [muted, setMuted] = useState(false);
@@ -23,6 +25,7 @@ export default function Conversation() {
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [openingAttachmentId, setOpeningAttachmentId] = useState<string | null>(null);
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting');
+  const readRecoveryRef = useRef(false);
   const messagesKey = apiQueryKey('chat-messages', id);
 
   const me = useApiQuery<{ userId: string }>(apiQueryKey('me'), '/me');
@@ -33,7 +36,7 @@ export default function Conversation() {
     { limit: 100 },
     {
       enabled: Boolean(id),
-      refetchInterval: realtimeStatus === 'connected' ? false : 12_000,
+      refetchInterval: realtimeStatus === 'connected' ? false : 4_000,
     },
   );
 
@@ -42,8 +45,20 @@ export default function Conversation() {
   useEffect(() => {
     const latest = messages.data?.items?.[0];
     if (!id || !latest || latest.id.startsWith('local-')) return;
-    void apiPatch(`/chat/rooms/${id}/read`, { messageId: latest.id });
-  }, [id, messages.data?.items?.[0]?.id]);
+    let cancelled = false;
+    apiPatch(`/chat/rooms/${id}/read`, { messageId: latest.id }).catch((error) => {
+      if (cancelled || readRecoveryRef.current) return;
+      if ((error as Error).message.toLowerCase().includes('conversation unavailable')) {
+        readRecoveryRef.current = true;
+        queryClient.removeQueries({ queryKey: apiQueryKey('chat-room', id) });
+        queryClient.removeQueries({ queryKey: messagesKey });
+        void queryClient.invalidateQueries({ queryKey: apiQueryKey('chat-rooms') });
+        toast({ type: 'info', message: 'Conversation is no longer available.' });
+        goBackOrReplace('/chat');
+      }
+    });
+    return () => { cancelled = true; };
+  }, [id, messages.data?.items?.[0]?.id, toast]);
 
   const send = useApiMutation<
     ChatMessage,
@@ -207,28 +222,36 @@ export default function Conversation() {
   if (room.isLoading || messages.isLoading || me.isLoading) {
     return <Screen><StateView icon="hourglass-outline" title="Loading conversation" detail="Decrypting your authorized message history…" /></Screen>;
   }
-  if (room.isError || messages.isError || me.isError) {
+  if (room.isError || messages.isError || me.isError || !room.data) {
     const error = room.error ?? messages.error ?? me.error;
-    return <Screen><StateView icon="lock-closed-outline" tone="danger" title="Messaging unavailable" detail={error?.message ?? 'Room unavailable.'} action="Go back" onAction={() => goBackOrReplace('/chat')} /></Screen>;
+    return <Screen><StateView icon="lock-closed-outline" tone="danger" title="Messaging unavailable" detail={error?.message ?? 'Conversation is no longer available.'} action="Go back" onAction={() => goBackOrReplace('/chat')} /></Screen>;
   }
 
-  const ordered = [...(messages.data?.items ?? [])].reverse();
+  const messageItems = messages.data?.items ?? [];
   const statusLabel = realtimeStatus === 'connected' ? 'Live' : realtimeStatus === 'connecting' ? 'Connecting…' : 'Reconnecting…';
 
   return (
-    <Screen scroll={false} keyboardAvoiding={false}>
+    <Screen scroll={false} keyboardAvoiding={false} style={{ paddingBottom: Math.max(insets.bottom, 8) }}>
       <TopBar
         title={roomTitle}
         subtitle={`Private but reportable · ${statusLabel}`}
         left={<IconButton icon="chevron-back" label="Back" onPress={() => goBackOrReplace('/chat')} />}
         right={<IconButton icon={muted ? 'notifications-off' : 'notifications-outline'} label={muted ? 'Unmute room' : 'Mute room'} onPress={toggleMute} active={muted} />}
       />
-      <View style={{ flex: 1, paddingVertical: 12 }}>
-        {ordered.length ? ordered.map((message) => {
+      <View style={{ flex: 1, minHeight: 0 }}>
+        {messageItems.length ? <FlatList
+          data={messageItems}
+          inverted
+          keyExtractor={(message) => message.id}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingTop: 12, paddingBottom: 10 }}
+          renderItem={({ item: message }) => {
           const mine = message.senderId === me.data?.userId;
           const optimistic = message.id.startsWith('local-');
           return (
-            <View key={message.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '78%', backgroundColor: mine ? p.brand : p.surface, borderWidth: mine ? 0 : 1, borderColor: p.line, borderRadius: 16, borderBottomRightRadius: mine ? 4 : 16, borderBottomLeftRadius: mine ? 16 : 4, paddingHorizontal: 13, paddingVertical: 10, marginBottom: 8, opacity: optimistic ? 0.7 : 1 }}>
+            <View style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '78%', minWidth: 74, backgroundColor: mine ? p.brand : p.surface, borderWidth: mine ? 0 : 1, borderColor: p.line, borderRadius: 18, borderBottomRightRadius: mine ? 5 : 18, borderBottomLeftRadius: mine ? 18 : 5, paddingHorizontal: 13, paddingTop: 9, paddingBottom: 7, marginBottom: 8, opacity: optimistic ? 0.7 : 1 }}>
               {!mine && room.data?.type !== 'dm' ? <Text style={{ color: p.brand, fontSize: 11, fontWeight: '800', marginBottom: 3 }}>{namesByUserId.get(message.senderId) ?? 'Campus member'}</Text> : null}
               {message.attachments?.map((attachment) => (
                 <Pressable key={attachment.id} accessibilityRole="button" accessibilityLabel={`Open ${attachment.fileName}`} onPress={() => void openAttachment(attachment)} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 12, padding: 9, backgroundColor: mine ? 'rgba(255,255,255,0.15)' : p.sunken, opacity: pressed || openingAttachmentId === attachment.id ? 0.65 : 1 })}>
@@ -240,13 +263,14 @@ export default function Conversation() {
                 </Pressable>
               ))}
               {message.messageType !== 'file' || !message.attachments?.length ? <Text style={{ color: mine ? '#FFFFFF' : p.ink, fontSize: 15, lineHeight: 21 }}>{message.content ?? 'Message unavailable.'}</Text> : null}
-              <Text style={{ color: mine ? '#DDE5FF' : p.muted, fontSize: 10, marginTop: 4, textAlign: 'right' }}>{optimistic ? 'Sending…' : `${new Date(message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${message.editedAt ? ' · edited' : ''}`}</Text>
+              <Text style={{ color: mine ? '#DDE5FF' : p.muted, fontSize: 10, lineHeight: 13, marginTop: 3, alignSelf: 'flex-end', textAlign: 'right' }}>{optimistic ? 'Sending…' : `${new Date(message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${message.editedAt ? ' · edited' : ''}`}</Text>
             </View>
           );
-        }) : <StateView icon="chatbubble-outline" title="No messages" detail="Start this authorized conversation below." />}
+          }}
+        /> : <StateView icon="chatbubble-outline" title="No messages" detail="Start this authorized conversation below." />}
       </View>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={{ borderTopWidth: 1, borderTopColor: p.line, paddingTop: 10, flexDirection: 'row', alignItems: 'flex-end', gap: 9 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}>
+        <View style={{ borderTopWidth: 1, borderTopColor: p.line, paddingTop: 10, paddingBottom: Platform.OS === 'ios' ? 4 : 8, flexDirection: 'row', alignItems: 'flex-end', gap: 9, backgroundColor: p.canvas }}>
           <Pressable accessibilityLabel="Attach file" accessibilityRole="button" disabled={uploadingAttachment || !me.data?.userId} onPress={() => void sendAttachment()} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: p.surface, borderWidth: 1, borderColor: p.line, opacity: uploadingAttachment || pressed ? 0.55 : 1 })}>
             <Ionicons name={uploadingAttachment ? 'hourglass-outline' : 'attach'} size={21} color={p.brand} />
           </Pressable>
@@ -255,7 +279,7 @@ export default function Conversation() {
             <Ionicons name="send" size={19} color="#FFFFFF" />
           </Pressable>
         </View>
-        <Button compact variant="ghost" label="Report recent visible messages" icon="flag-outline" loading={reporting} onPress={reportRecent} />
+        <View style={{ backgroundColor: p.canvas }}><Button compact variant="ghost" label="Report recent visible messages" icon="flag-outline" loading={reporting} onPress={reportRecent} /></View>
       </KeyboardAvoidingView>
     </Screen>
   );

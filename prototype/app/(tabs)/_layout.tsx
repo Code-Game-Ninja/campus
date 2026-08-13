@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useAppStore } from '@/store/useAppStore';
 import { usePalette } from '@/theme/usePalette';
+import { apiQueryKey, useApiQuery } from '@/lib/api-hooks';
+import type { NotificationResponse } from '@/lib/notifications';
 
 const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
   'home/index': 'home',
@@ -74,6 +76,8 @@ function CreateQuickMenu({ visible, onClose }: { visible: boolean; onClose: () =
 function FloatingTabBar({ state, descriptors, navigation }: any) {
   const p = usePalette();
   const [menuOpen, setMenuOpen] = useState(false);
+  const notifications = useApiQuery<NotificationResponse[]>(apiQueryKey('notifications'), '/notifications', {}, { refetchInterval: 15_000, staleTime: 5_000 });
+  const hasUnreadNotifications = notifications.data?.some((item) => !item.read) ?? false;
   return <>
     <View style={{ height: 82, backgroundColor: p.surface, borderTopWidth: 1, borderTopColor: p.line, flexDirection: 'row', alignItems: 'flex-start', paddingTop: 8, paddingBottom: 18 }}>
       {state.routes.map((route: any, index: number) => {
@@ -87,7 +91,7 @@ function FloatingTabBar({ state, descriptors, navigation }: any) {
           if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
         };
         return <Pressable key={route.key} accessibilityRole="button" accessibilityState={focused ? { selected: true } : {}} accessibilityLabel={String(label)} onPress={onPress} onLongPress={isCreate ? () => setMenuOpen(true) : undefined} style={({ pressed }) => ({ flex: 1, alignItems: 'center', justifyContent: 'flex-start', opacity: pressed ? 0.72 : 1 })}>
-          {isCreate ? <View style={{ width: 58, height: 58, borderRadius: 29, marginTop: -22, backgroundColor: p.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 5, borderColor: p.canvas, shadowColor: p.brand, shadowOpacity: 0.32, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 8 }}><Ionicons name="add" size={30} color="#FFFFFF" /></View> : <Ionicons name={`${focused ? icons[route.name] : `${icons[route.name]}-outline`}` as keyof typeof Ionicons.glyphMap} size={22} color={focused ? p.brand : p.muted} />}
+          {isCreate ? <View style={{ width: 58, height: 58, borderRadius: 29, marginTop: -22, backgroundColor: p.brand, alignItems: 'center', justifyContent: 'center', borderWidth: 5, borderColor: p.canvas, shadowColor: p.brand, shadowOpacity: 0.32, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 8 }}><Ionicons name="add" size={30} color="#FFFFFF" /></View> : <View><Ionicons name={`${focused ? icons[route.name] : `${icons[route.name]}-outline`}` as keyof typeof Ionicons.glyphMap} size={22} color={focused ? p.brand : p.muted} />{route.name === 'activity/index' && hasUnreadNotifications ? <View accessibilityLabel="Unread notifications" style={{ position: 'absolute', right: -4, top: -3, width: 8, height: 8, borderRadius: 4, backgroundColor: p.danger, borderWidth: 1.5, borderColor: p.surface }} /> : null}</View>}
           {!isCreate ? <Text style={{ color: focused ? p.brand : p.muted, fontSize: 11, fontWeight: '700', marginTop: 4 }}>{label}</Text> : <Text style={{ color: p.brand, fontSize: 11, fontWeight: '800', marginTop: 2 }}>Create</Text>}
         </Pressable>;
       })}

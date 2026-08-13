@@ -1,8 +1,22 @@
-import { apiGet, apiPatch } from './api';
+import { apiDelete, apiGet, apiPatch } from './api';
 
 export type NotificationEventType = 'post_reaction' | 'comment' | 'event_reminder' | 'event_changed' | 'event_cancelled' | 'team_application' | 'team_invitation' | 'team_application_accepted' | 'team_application_rejected' | 'connection_request' | 'connection_accepted' | 'chat_message' | 'club_update' | 'security_alert';
 export interface NotificationPreferenceResponse { id: string; campusId: string; userId: string; eventType: NotificationEventType; inApp: boolean; push: boolean; emailDigest: boolean; updatedAt: string }
-export interface NotificationResponse { id: string; campusId: string; recipientId: string; eventType: NotificationEventType; title: string; body: string; read: boolean; referenceType: string | null; referenceId: string | null; createdAt: string }
+export interface NotificationResponse {
+  id: string;
+  campusId: string | null;
+  recipientId: string;
+  actorId: string | null;
+  actorDisplayName: string | null;
+  actorAvatarUrl: string | null;
+  eventType: NotificationEventType;
+  title: string;
+  body: string;
+  read: boolean;
+  referenceType: string | null;
+  referenceId: string | null;
+  createdAt: string;
+}
 
 export async function getNotifications(unreadOnly = false): Promise<NotificationResponse[]> {
   return apiGet<NotificationResponse[]>('/notifications', { unreadOnly: unreadOnly ? 'true' : undefined });
@@ -10,6 +24,10 @@ export async function getNotifications(unreadOnly = false): Promise<Notification
 
 export async function markNotificationRead(id: string): Promise<NotificationResponse> {
   return apiPatch<NotificationResponse>(`/notifications/${id}/read`);
+}
+
+export async function deleteNotification(id: string): Promise<string> {
+  return apiDelete<string>(`/notifications/${id}`);
 }
 
 export async function getNotificationPreferences(): Promise<NotificationPreferenceResponse[]> {

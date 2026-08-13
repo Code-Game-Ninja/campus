@@ -14,6 +14,11 @@ const visibleLabelsMigration = readFileSync(join(backend, 'supabase', 'migration
 const legacyConversationParticipantsMigration = readFileSync(join(backend, 'supabase', 'migrations', '0023_legacy_conversation_participants.sql'), 'utf8');
 const chatConflictArbitersMigration = readFileSync(join(backend, 'supabase', 'migrations', '0024_chat_conflict_arbiters.sql'), 'utf8');
 const allConflictArbitersMigration = readFileSync(join(backend, 'supabase', 'migrations', '0025_all_conflict_arbiters.sql'), 'utf8');
+const profileCampusLabelsMigration = readFileSync(join(backend, 'supabase', 'migrations', '0026_profile_campus_labels.sql'), 'utf8');
+const teamInvitationNotificationMigration = readFileSync(join(backend, 'supabase', 'migrations', '0027_team_invitation_notification_ambiguity.sql'), 'utf8');
+const usersCampusRelationshipMigration = readFileSync(join(backend, 'supabase', 'migrations', '0028_users_campus_relationship.sql'), 'utf8');
+const chatRealtimePublicationMigration = readFileSync(join(backend, 'supabase', 'migrations', '0029_chat_realtime_publication.sql'), 'utf8');
+const notificationDismissalMigration = readFileSync(join(backend, 'supabase', 'migrations', '0030_notification_dismissal.sql'), 'utf8');
 const campusCatalogSync = readFileSync(join(backend, 'scripts', 'sync-indian-institutions.mjs'), 'utf8');
 const api = readFileSync(join(prototype, 'src', 'lib', 'api.ts'), 'utf8');
 const navigation = readFileSync(join(prototype, 'src', 'lib', 'navigation.ts'), 'utf8');
@@ -28,7 +33,16 @@ const authVerification = readFileSync(join(prototype, 'app', '(auth)', 'verify.t
 const composer = readFileSync(join(prototype, 'app', 'compose', 'index.tsx'), 'utf8');
 const conversation = readFileSync(join(prototype, 'app', 'chat', '[id].tsx'), 'utf8');
 const chatList = readFileSync(join(prototype, 'app', 'chat', 'index.tsx'), 'utf8');
+const activity = readFileSync(join(prototype, 'app', '(tabs)', 'activity', 'index.tsx'), 'utf8');
+const notifications = readFileSync(join(prototype, 'src', 'lib', 'notifications.ts'), 'utf8');
+const postCards = readFileSync(join(prototype, 'src', 'components', 'cards.tsx'), 'utf8');
+const home = readFileSync(join(prototype, 'app', '(tabs)', 'home', 'index.tsx'), 'utf8');
+const personProfile = readFileSync(join(prototype, 'app', 'people', '[id].tsx'), 'utf8');
 const appProviders = readFileSync(join(prototype, 'src', 'providers', 'AppProviders.tsx'), 'utf8');
+const ui = readFileSync(join(prototype, 'src', 'components', 'ui.tsx'), 'utf8');
+const tabsLayout = readFileSync(join(prototype, 'app', '(tabs)', '_layout.tsx'), 'utf8');
+const realtimeChat = readFileSync(join(prototype, 'src', 'lib', 'realtime-chat.ts'), 'utf8');
+const realtimeChatProtocol = readFileSync(join(prototype, 'src', 'lib', 'realtime-chat-protocol.ts'), 'utf8');
 const mobilePackage = readFileSync(join(prototype, 'package.json'), 'utf8');
 const seed = readFileSync(join(backend, 'supabase', 'seed.sql'), 'utf8');
 const cloudVerification = readFileSync(join(backend, 'scripts', 'verify-cloud-mvp.mjs'), 'utf8');
@@ -88,6 +102,47 @@ for (const marker of ['campusphere_connections_pair_uidx', 'campusphere_conversa
 for (const marker of ['campusphere_event_registrations_pair_uidx', 'campusphere_team_members_pair_uidx', 'campusphere_team_applications_active_uidx', 'campusphere_notification_dedupe_uidx', 'campusphere_restrictions_active_uidx', 'campusphere_user_devices_label_uidx']) {
   if (!allConflictArbitersMigration.includes(marker)) throw new Error(`General conflict arbiter missing: ${marker}`);
 }
+for (const marker of ['team_owner_id uuid', 'select team.owner_id, team.title', 'from public.team_requests as team', 'team_applications_notify']) {
+  if (!teamInvitationNotificationMigration.includes(marker)) throw new Error(`Team invitation notification ambiguity fix missing: ${marker}`);
+}
+for (const marker of ['users_campus_id_fkey', 'foreign key (campus_id) references public.campuses(id)', 'pg_get_constraintdef', "notify pgrst, 'reload schema'"]) {
+  if (!usersCampusRelationshipMigration.includes(marker)) throw new Error(`Users/campuses relationship fix missing: ${marker}`);
+}
+for (const marker of ['alter table public.messages replica identity full', 'alter table public.chat_message_events replica identity full', 'alter publication supabase_realtime add table public.messages']) {
+  if (!chatRealtimePublicationMigration.includes(marker)) throw new Error(`Chat realtime publication fix missing: ${marker}`);
+}
+for (const marker of ['delete_notification_mobile', 'notification.user_id = actor', 'grant execute on function public.delete_notification_mobile']) {
+  if (!notificationDismissalMigration.includes(marker)) throw new Error(`Notification dismissal migration missing: ${marker}`);
+}
+for (const marker of ["table: 'messages'", "filter: `conversation_id=eq.${roomId}`"]) {
+  if (!realtimeChat.includes(marker)) throw new Error(`Realtime chat subscription missing: ${marker}`);
+}
+for (const marker of ["table === 'messages'", "record.conversation_id === roomId"]) {
+  if (!realtimeChatProtocol.includes(marker)) throw new Error(`Realtime message parser missing: ${marker}`);
+}
+if (!conversation.includes("refetchInterval: realtimeStatus === 'connected' ? false : 4_000")) throw new Error('Realtime reconnect polling fallback missing.');
+for (const marker of ['RefreshControl', 'onRefresh']) {
+  if (!ui.includes(marker)) throw new Error(`Shared pull-to-refresh missing: ${marker}`);
+}
+if (!activity.includes('refreshing={query.isRefetching}')) throw new Error('Activity pull-to-refresh missing.');
+if (!chatList.includes('refreshing={me.isRefetching || rooms.isRefetching')) throw new Error('Chat pull-to-refresh missing.');
+if (!home.includes('refreshing={me.isRefetching || profile.isRefetching || feed.isRefetching}')) throw new Error('Home pull-to-refresh missing.');
+for (const marker of ['hasUnreadNotifications', 'Unread notifications', "route.name === 'activity/index'"]) {
+  if (!tabsLayout.includes(marker)) throw new Error(`Notification tab unread dot missing: ${marker}`);
+}
+for (const marker of ['FlatList', 'inverted', 'minHeight: 0', "alignSelf: 'flex-end'"]) {
+  if (!conversation.includes(marker)) throw new Error(`Scrollable bottom-anchored chat missing: ${marker}`);
+}
+for (const marker of ['ReanimatedSwipeable', 'deleteNotification(item.id)', 'renderRightActions', 'Delete']) {
+  if (!activity.includes(marker)) throw new Error(`Swipe notification dismissal missing: ${marker}`);
+}
+if (!api.includes("rpc<T>('delete_notification_mobile'")) throw new Error('Notification dismissal API wiring missing.');
+for (const marker of ["select: 'id,campus_id,status,onboarding_completed_at'", 'campusNameFor(user.campus_id, token)', "select: '*'", 'campusNameFor(rows[0].campus_id, token)']) {
+  if (!api.includes(marker)) throw new Error(`Client campus relationship fallback missing: ${marker}`);
+}
+for (const marker of ["'campusName', campus.name", 'left join public.campuses campus', 'get_discoverable_profile_mobile']) {
+  if (!profileCampusLabelsMigration.includes(marker)) throw new Error(`Profile college label migration missing: ${marker}`);
+}
 for (const marker of ['visibleProfileLabels([post.author_id]', 'visibleProfileLabels(rows.map((row) => row.author_id)', 'visibleProfileLabels(members.map((member) => member.user_id)', "visibleProfileLabels(rows.map((row) => row.applicant_id)", "visibleProfileLabels(rows.map((row) => row.requester_id === me.userId", 'visibleProfileLabels(rows.map((row) => row.followee_id)']) {
   if (!api.includes(marker)) throw new Error(`Mobile visible profile label wiring missing: ${marker}`);
 }
@@ -113,6 +168,21 @@ for (const marker of ['attach_message_file', 'uploadChatAttachment', 'message_at
 for (const marker of ['pickChatAttachment', 'uploadingAttachment', 'getChatAttachmentUrl']) {
   if (!conversation.includes(marker)) throw new Error(`Chat attachment UI missing: ${marker}`);
 }
+for (const marker of ["rows.map((row) => row.actor_id)", 'actorDisplayName', 'sent you a connection request', 'sent you a message']) {
+  if (!api.includes(marker) && !notifications.includes(marker)) throw new Error(`Notification actor mapping missing: ${marker}`);
+}
+for (const marker of ["referenceType === 'connection'", "referenceType === 'conversation'", "router.push('/chat?tab=Connections')", 'router.push(`/chat/${referenceId}`)']) {
+  if (!activity.includes(marker)) throw new Error(`Notification deep link missing: ${marker}`);
+}
+for (const marker of [".catch((error) =>", "includes('conversation unavailable')", "goBackOrReplace('/chat')"]) {
+  if (!conversation.includes(marker)) throw new Error(`Stale conversation recovery missing: ${marker}`);
+}
+if (!postCards.includes("me.data?.userId === post.authorId ? '/(tabs)/profile'")) throw new Error('Own post author must open the signed-in Profile tab.');
+if (!postCards.includes("{post.campus}{post.scope === 'global' ? ' · Global' : ''}")) throw new Error('Post cards must display source college names.');
+for (const marker of ['me.data?.campusName', 'Campus not selected']) {
+  if (!home.includes(marker)) throw new Error(`Home college label missing: ${marker}`);
+}
+if (!personProfile.includes('profile.campusName')) throw new Error('Public profile college label is missing.');
 for (const marker of ['pickPostMedia', 'uploadPostMedia', 'pollEnabled', '2000']) {
   if (!composer.includes(marker)) throw new Error(`Post format UI missing: ${marker}`);
 }

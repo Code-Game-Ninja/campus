@@ -245,7 +245,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Server/RLS enforcement is authoritative.
 - **Estimate:** 4 hours.
 - **Gate:** None.
-- **Status:** [x] Implementation complete — profile read/edit mapping, consent preservation, privacy/discoverability, suggestions, and block-aware server rules are wired. Migration `0022` supplies privacy-safe real display labels for authorized post/comment, connection, chat, team-application, and following surfaces, preventing valid users from appearing as generic `Campus member`. Owner cross-user verification belongs to Phase 10.
+- **Status:** [x] Implementation complete — profile read/edit mapping, consent preservation, privacy/discoverability, suggestions, and block-aware server rules are wired. Migrations `0022` and `0026` supply privacy-safe real display labels and college names for authorized post/comment, connection, chat, team-application, following, resource, and public-profile surfaces, preventing valid users from appearing as generic `Campus member` or `Campus account`. Owner cross-user verification belongs to Phase 10.
 
 ## Phase 4 — Student Event Access
 
@@ -309,7 +309,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Text-only fallback if storage is not approved.
 - **Estimate:** 4 hours.
 - **Gate:** None.
-- **Status:** [x] Implementation complete — transactional typed posts, private media, link previews, polls, event/team links, ownership mutations, 2,000-character UI, uploads, signed reads, and linked cards exist. Migration `0018` fixes restriction-trigger ownership lookup so post creation uses `author_id` without evaluating a missing `owner_id` field.
+- **Status:** [x] Implementation complete — transactional typed posts, private media, link previews, polls, event/team links, ownership mutations, 2,000-character UI, uploads, signed reads, and linked cards exist. Post photos use full-width 4:5 feed rendering; Android photo selection provides native crop, zoom, and rotation before an in-composer preview. PDFs remain a separate upload path. Migration `0018` fixes restriction-trigger ownership lookup so post creation uses `author_id` without evaluating a missing `owner_id` field.
 
 ### P5.2 Implement newest-first feed and cursor pagination
 
@@ -359,7 +359,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Default to apply-and-owner-approve.
 - **Estimate:** 4 hours.
 - **Gate:** Team Finder approval.
-- **Status:** [x] Implementation complete — applications, answers, owner decisions, invitations, member responses, withdrawal/reapply, ownership, and capacity-safe membership use transactional RPCs.
+- **Status:** [x] Implementation complete — applications, answers, owner decisions, invitations, member responses, withdrawal/reapply, ownership, and capacity-safe membership use transactional RPCs. Migration `0027` fixes owner-member invitation failure caused by ambiguous `owner_id` in the notification trigger.
 
 ### P6.3 Integrate team chat membership
 
@@ -409,7 +409,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Ship persisted text, unread, reads, and reconnect first if needed.
 - **Estimate:** 4 hours.
 - **Gate:** Chat approval.
-- **Status:** [x] Implementation complete — chat covers text/file/link/GIF/sticker/system schema, idempotency, replies, edit/delete, reads, reactions, search, presence, Realtime invalidation, mute/report, private attachments, signed downloads, and cleanup. Migrations `0023`–`0025` make direct/team/group/event room writers compatible with cloud tables that retain obsolete fields or incompatible legacy indexes, and harden every chat-related upsert target.
+- **Status:** [x] Implementation complete — chat covers text/file/link/GIF/sticker/system schema, idempotency, replies, edit/delete, reads, reactions, search, presence, Realtime invalidation, mute/report, private attachments, signed downloads, and cleanup. Migrations `0023`–`0025` make direct/team/group/event room writers compatible with cloud tables that retain obsolete fields or incompatible legacy indexes, and harden every chat-related upsert target. Migration `0029` reasserts Realtime publication for messages and invalidation events; mobile subscribes to both with a four-second reconnect fallback. Conversation history is an inverted scrollable list anchored above a fixed keyboard-safe composer, with chat-specific bottom safe-area spacing instead of tab-screen padding. Chat lists support pull-to-refresh. Mobile read receipts now catch stale authorization failures; an unavailable conversation clears stale caches and returns to the chat list instead of producing an unhandled promise error.
 
 ## Phase 8 — Notifications, Email, and Reminders
 
@@ -423,7 +423,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Keep event reminders separately flaggable.
 - **Estimate:** 3–4 hours.
 - **Gate:** Notification approval.
-- **Status:** [x] Implementation complete — idempotent outbox/retry, domain triggers, category preferences, quiet hours, cursor pagination, RPC-backed reads/devices, and worker scripts exist. Provider/scheduler execution remains external.
+- **Status:** [x] Implementation complete — idempotent outbox/retry, domain triggers, category preferences, quiet hours, cursor pagination, RPC-backed reads/devices, and worker scripts exist. Mobile notification mapping resolves privacy-authorized actor names from `actor_id`, replaces raw event keys with readable activity text, and deep-links connection updates to Connections, messages to their conversation, and post/event/resource/team activity to its source. Activity tab shows an unread dot and Activity/Home/Chat support pull-to-refresh. Migration `0030` and swipe-left UI let users smoothly dismiss only their own notifications. Provider/scheduler execution remains external.
 
 ### P8.2 Add approved email delivery
 
@@ -523,7 +523,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Risk/rollback:** Split slow E2E from PR checks but retain release gate.
 - **Estimate:** 4 hours.
 - **Gate:** Technical approval.
-- **Status:** [~] Local automation complete — all 25 migrations pass static SQL validation; config, API contract, MVP coverage, two-source institution normalization, backend/mobile TypeScript, production web export, Android Hermes bundling, and `git diff --check` pass. Regression coverage locks resource uploads, deterministic navigation/onboarding, restriction-trigger ownership, absence of runtime mocks, React Native readonly `Event.NONE`, privacy-safe people discovery/recommendations, searchable chat requests, visible profile labels, caught Ionicons font loading, tunnel startup, Team Finder conflict targets, legacy conversation-participant compatibility, and all explicit SQL conflict arbiters. Owner must execute authenticated cloud database/RLS/concurrency/Realtime/device suites after pushing `0016`–`0025`; checklist is `docs/mvp_external_verification.md`.
+- **Status:** [~] Local automation complete — all 30 migrations pass static SQL validation; config, API contract, MVP coverage, two-source institution normalization, backend/mobile TypeScript, production web export, Android Hermes bundling, and `git diff --check` pass. Regression coverage locks resource uploads, deterministic navigation/onboarding, restriction-trigger ownership, absence of runtime mocks, React Native readonly `Event.NONE`, privacy-safe people discovery/recommendations, searchable chat requests, visible profile labels and college names, caught Ionicons font loading, tunnel startup, Team Finder conflict targets, legacy conversation-participant compatibility, all explicit SQL conflict arbiters, owner-member invitation notification trigger qualification, users-to-campuses relationship recovery, dual-source chat Realtime, bottom-anchored scrolling chat, pull-to-refresh, notification swipe dismissal, and the notification unread dot. Owner must execute authenticated cloud database/RLS/concurrency/Realtime/device suites after pushing `0016`–`0030`; checklist is `docs/mvp_external_verification.md`.
 
 ### P10.2 Validate performance targets
 

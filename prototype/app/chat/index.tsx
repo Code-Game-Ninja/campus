@@ -25,8 +25,8 @@ export default function ChatList() {
   const [peopleQuery, setPeopleQuery] = useState('');
   const [debouncedPeopleQuery, setDebouncedPeopleQuery] = useState('');
   const me = useApiQuery<{ userId: string }>(apiQueryKey('me'), '/me');
-  const rooms = useApiQuery<ChatRoom[]>(apiQueryKey('chat-rooms'), '/chat/rooms');
-  const connections = useApiQuery<ConnectionView[]>(apiQueryKey('connections'), '/connections');
+  const rooms = useApiQuery<ChatRoom[]>(apiQueryKey('chat-rooms'), '/chat/rooms', {}, { refetchInterval: 10_000 });
+  const connections = useApiQuery<ConnectionView[]>(apiQueryKey('connections'), '/connections', {}, { refetchInterval: 15_000 });
   const peopleSearch = useApiQuery<PeopleSearchResult>(
     apiQueryKey('chat-people-search', debouncedPeopleQuery),
     '/search',
@@ -98,6 +98,9 @@ export default function ChatList() {
   const error = me.error ?? rooms.error ?? connections.error;
   const teamRooms = rooms.data?.filter((room) => room.type !== 'dm') ?? [];
   const directRooms = rooms.data?.filter((room) => room.type === 'dm') ?? [];
+  const refresh = async () => {
+    await Promise.all([me.refetch(), rooms.refetch(), connections.refetch(), debouncedPeopleQuery.length >= 2 ? peopleSearch.refetch() : Promise.resolve()]);
+  };
 
   const renderRoom = (room: ChatRoom) => {
     const counterpart = room.type === 'dm' ? room.members.find((member) => member.userId !== me.data?.userId) : undefined;
@@ -119,7 +122,7 @@ export default function ChatList() {
   };
 
   return (
-    <Screen>
+    <Screen refreshing={me.isRefetching || rooms.isRefetching || connections.isRefetching || peopleSearch.isRefetching} onRefresh={refresh}>
       <TopBar title="Messages" subtitle="Encrypted at rest, private but reportable" left={<IconButton icon="chevron-back" label="Back" onPress={() => goBackOrReplace('/(tabs)/home')} />} />
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
         <Chip label="Chats" selected={tab === 'Chats'} onPress={() => setTab('Chats')} />

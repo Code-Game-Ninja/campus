@@ -11,6 +11,12 @@
       "expo-router",
       "expo-secure-store",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow CampusSphere to select photos for your posts."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "defaultChannel": "default"

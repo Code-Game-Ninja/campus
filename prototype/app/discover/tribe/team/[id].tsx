@@ -233,7 +233,7 @@ export default function TeamDetail() {
     <Screen>
       <TopBar
         title={team.title}
-        subtitle={`${team.scope} team request`}
+        subtitle={`${team.campusName ?? (team.scope === 'global' ? 'Global CampusSphere' : 'Campus not selected')} · ${team.scope} team request`}
         left={<IconButton icon="chevron-back" label="Back" onPress={() => goBackOrReplace('/discover/tribe')} />}
         right={team.isOwner ? <OwnerActions target="team request" onEdit={() => setEditing(true)} onDelete={() => update.mutate({ status: 'closed', version: team.version })} /> : undefined}
       />
