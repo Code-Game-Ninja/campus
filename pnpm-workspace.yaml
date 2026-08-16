@@ -1,4 +1,6 @@
 packages:
   - backend
+  - admin-backend
   - prototype
+  - admin-web
   - packages/*

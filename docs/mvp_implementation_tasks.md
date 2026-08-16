@@ -511,6 +511,14 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Gate:** Privacy/release approval.
 - **Status:** [x] Implementation complete — settings, logout flows, export/campus/deletion requests, immediate hiding, cancellation, 30-day cleanup, retention, and Auth deletion worker support are wired.
 
+## Admin Web Portal Planning
+
+- **Status:** [~] Three-role design prototype is implementation-complete for design review; production API/auth work remains.
+- **Scope:** Separate Campus Admin, Event Manager, and Super Admin dashboards with deny-by-default role/scope policy, mock event/content workflows, moderation, staff assignments, audit, health, and Vercel deployment shape.
+- **Implementation:** [x] Mock-data shell, role-aware navigation, scope context, overview metrics, event/content/staff/campus/audit/health/settings screens, search behavior, responsive tables, theme tokens, and loading/empty/error/permission-denied states are implemented. `npm run typecheck` and `npm run build` pass. Supabase API/RLS integration waits for design approval.
+- **Latest completion:** [x] `admin-web/PRODUCT.md` records confirmed users, role boundaries, product purpose, operating context, capabilities, constraints, evidence, principles, and accessibility requirements. `admin-web/DESIGN.md` now defines the glass operations ledger visual world. `admin-web/src/App.tsx` and `admin-web/src/styles.css` apply scope-first, mock-honest, accessible dashboard behavior, bounded glass surfaces, ambient motion, view transitions, narrow urgent-review layout, and a reduced icon bundle. Desktop and mobile screenshots were checked and stored under `admin-web/.impeccable/review/`. The GSAP package could not be fetched because the local npm registry request is blocked with `EACCES`; the current prototype uses the browser Web Animations API with an isolated motion boundary.
+- **Remaining:** [ ] Add authenticated `/admin/v1` server boundary, Supabase staff assignments/RLS, audited mutations, real loading/error telemetry, and Vercel environment configuration before production use.
+
 ## Phase 10 — Verification and Closed-Pilot Release
 
 ### P10.1 Implement mandatory automated tests and CI
@@ -524,6 +532,7 @@ Every task includes objective, dependencies, affected files/modules, acceptance 
 - **Estimate:** 4 hours.
 - **Gate:** Technical approval.
 - **Status:** [~] Local automation complete — all 30 migrations pass static SQL validation; config, API contract, MVP coverage, two-source institution normalization, backend/mobile TypeScript, production web export, Android Hermes bundling, and `git diff --check` pass. Regression coverage locks resource uploads, deterministic navigation/onboarding, restriction-trigger ownership, absence of runtime mocks, React Native readonly `Event.NONE`, privacy-safe people discovery/recommendations, searchable chat requests, visible profile labels and college names, caught Ionicons font loading, tunnel startup, Team Finder conflict targets, legacy conversation-participant compatibility, all explicit SQL conflict arbiters, owner-member invitation notification trigger qualification, users-to-campuses relationship recovery, dual-source chat Realtime, bottom-anchored scrolling chat, pull-to-refresh, notification swipe dismissal, and the notification unread dot. Owner must execute authenticated cloud database/RLS/concurrency/Realtime/device suites after pushing `0016`–`0030`; checklist is `docs/mvp_external_verification.md`.
+- **Latest completion:** Mobile Developers page now uses confirmed team identities and ownership: Radha (Dev A, Security & Testing), Tanay (Dev B, Community Full-Stack), and Chirag Mishra (Dev C, UI/UX, Frontend, Utility + Intelligence). Roadmap responsibilities are shown without presenting staged or disabled MVP features as released.
 
 ### P10.2 Validate performance targets
 

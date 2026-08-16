@@ -1,0 +1,30 @@
+import { ArrowUpRight, CircleHelp, MoreHorizontal, Radio, Sparkles } from 'lucide-react';
+import type { Role } from '../data';
+
+export function TrendChart({ role, value, onAction }: { role: Role; value?: string; onAction: (message: string) => void }) {
+  const labels = role === 'event_manager' ? ['M', 'T', 'W', 'T', 'F', 'S', 'S'] : role === 'super_admin' ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'] : ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  return <article className="panel trend-panel">
+    <div className="panel-heading"><div><span className="eyebrow">Activity pulse</span><h2>{role === 'event_manager' ? 'Registrations this week' : 'Campus activity'}</h2></div><button className="icon-button icon-button-quiet" aria-label="More chart options" onClick={() => onAction('Chart options opened in synthetic preview.')}><MoreHorizontal size={17} /></button></div>
+    <div className="trend-meta"><strong>{value ?? (role === 'event_manager' ? '0' : '0')}</strong><span className="positive"><ArrowUpRight size={13} /> Live</span><span className="muted">last 7 days</span></div>
+    <div className="chart-wrap"><svg viewBox="0 0 620 190" role="img" aria-label="Activity trend visualization" preserveAspectRatio="none"><defs><linearGradient id="area-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#d9ff35" stopOpacity=".18" /><stop offset="1" stopColor="#d9ff35" stopOpacity="0" /></linearGradient></defs><path className="chart-area" d="M0 150 C50 138 78 125 126 132 S184 94 226 110 S280 63 324 84 S370 75 412 88 S468 44 510 64 S570 34 620 24 L620 190 L0 190Z" /><path className="chart-line" d="M0 150 C50 138 78 125 126 132 S184 94 226 110 S280 63 324 84 S370 75 412 88 S468 44 510 64 S570 34 620 24" /><circle className="chart-point" cx="510" cy="64" r="5" /></svg><div className="chart-grid"><span /><span /><span /><span /></div><div className="chart-labels">{labels.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}</div></div>
+  </article>;
+}
+
+export function ProgressPanel({ role, value = 99.98, onAction }: { role: Role; value?: number; onAction: (message: string) => void }) {
+  return <article className="panel progress-panel"><div className="panel-heading"><div><span className="eyebrow">Operational signal</span><h2>Healthy by design</h2></div><CircleHelp size={16} className="muted-icon" /></div><div className="progress-content"><div className="ring" style={{ '--progress': `${Math.min(value, 100) * 3.6}deg` } as React.CSSProperties}><div><strong>{value.toFixed(2)}%</strong><span>within target</span></div></div><div className="progress-copy"><span className="status-label"><i /> Stable</span><p>{role === 'event_manager' ? 'Registration flow is connected to live event data.' : 'Core workflows are reaching the shared Supabase service.'}</p><button className="text-button" onClick={() => onAction('Open Platform Health for the latest service check.')}>Inspect signals <ArrowUpRight size={14} /></button></div></div><div className="progress-foot"><span><b>{value.toFixed(2)}%</b> request success</span><span><b>Live</b> service check</span></div></article>;
+}
+
+export function CampusMap({ onAction }: { onAction: (message: string) => void }) {
+  const points = [[20, 38], [35, 64], [49, 28], [58, 74], [70, 44], [82, 62], [88, 24]];
+  return <article className="panel map-panel"><div className="panel-heading"><div><span className="eyebrow">Global footprint</span><h2>Campus network</h2></div><button className="icon-button icon-button-quiet" aria-label="Network options" onClick={() => onAction('Network options opened in synthetic preview.')}><MoreHorizontal size={17} /></button></div><div className="map-visual"><div className="map-lines" />{points.map(([x, y], index) => <span key={`${x}-${y}`} className={`map-point point-${index}`} style={{ left: `${x}%`, top: `${y}%` }}><i /></span>)}<span className="map-caption"><Radio size={12} /> 42 active campuses</span></div></article>;
+}
+
+export function ActivityPanel({ items = [], onAction }: { items?: Array<{ time: string; title: string; detail: string; tone: string }>; onAction: (message: string) => void }) {
+  const rows = items.length ? items.map((item) => [new Date(item.time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), item.title, item.detail, item.tone]) : [['--:--', 'No recent admin activity', 'Actions will appear here after they are recorded.', 'blue']];
+  return <article className="panel activity-panel"><div className="panel-heading"><div><span className="eyebrow">Live queue</span><h2>Needs attention</h2></div><button className="text-button" onClick={() => onAction('Activity history is represented in synthetic preview.')}>View all <ArrowUpRight size={14} /></button></div><div className="activity-list">{rows.map(([time, title, detail, tone]) => <div className="activity-row" key={title}><time>{time}</time><span className={`activity-marker ${tone}`} /><div><strong>{title}</strong><small>{detail}</small></div><ArrowUpRight size={14} className="activity-arrow" /></div>)}</div></article>;
+}
+
+export function QuickActions({ role, onNavigate, onAction }: { role: Role; onNavigate: (label: string) => void; onAction: (message: string) => void }) {
+  const actions = role === 'campus_admin' ? [['Review posts', 'Moderation'], ['Invite manager', 'Event Managers'], ['Open settings', 'Campus Settings']] : role === 'event_manager' ? [['Create event', 'Events'], ['Review registrations', 'Registrations'], ['Send update', 'Notifications']] : [['Review reports', 'Moderation'], ['Manage staff', 'Staff & Roles'], ['Check health', 'Platform Health']];
+  return <article className="panel quick-panel"><div className="panel-heading"><div><span className="eyebrow">Shortcuts</span><h2>Quick actions</h2></div><Sparkles size={16} className="accent-icon" /></div><div className="quick-list">{actions.map(([label, target]) => <button key={label} onClick={() => { onNavigate(target); onAction(`${label} opened.`); }}><span>{label}</span><ArrowUpRight size={15} /></button>)}</div><div className="quick-note"><span className="pulse-dot" />Actions use the protected admin API and shared database.</div></article>;
+}

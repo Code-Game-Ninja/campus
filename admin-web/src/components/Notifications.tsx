@@ -1,0 +1,7 @@
+import { BellRing, CheckCheck, X } from 'lucide-react';
+import type { NotificationRecord } from '../lib/api';
+
+export function Notifications({ items, onClose, onRead, onReadAll, onViewAll }: { items: NotificationRecord[]; onClose: () => void; onRead: (id: string) => Promise<void>; onReadAll: () => Promise<void>; onViewAll: () => void }) {
+  const visible = items.slice(0, 4);
+  return <aside className="notification-drawer" aria-label="Notifications"><div className="drawer-heading"><div><span className="eyebrow">Operations inbox</span><h2>Notifications</h2></div><button className="icon-button" onClick={onClose} aria-label="Close notifications"><X size={17} /></button></div><button className="mark-read" onClick={onReadAll}><CheckCheck size={14} />Mark all as read</button><div className="notification-list">{visible.map((item) => <button key={item.id} className={item.unread ? 'unread' : ''} onClick={() => onRead(item.id)}><span className="notification-icon"><BellRing size={15} /></span><span><strong>{item.type}</strong><small>{item.title}</small><time>{new Date(item.created_at).toLocaleString('en-IN')}</time></span></button>)}{visible.length === 0 && <div className="notification-empty"><BellRing size={20} /><strong>No notifications</strong></div>}</div><button className="drawer-view-all" onClick={onViewAll}>Open notification centre <span aria-hidden="true">-&gt;</span></button><div className="drawer-foot">Notifications are stored in the shared database.</div></aside>;
+}

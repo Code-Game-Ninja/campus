@@ -10,36 +10,57 @@ export interface DeveloperLink {
 export interface DeveloperProfile {
   name: string;
   role: string;
+  track: string;
   bio: string;
   initials: string;
+  focusAreas: readonly string[];
   links?: DeveloperLink[];
 }
 
-/** Static showcase data. Replace these mock profiles when team details are final. */
+export const developerPageLinks: readonly DeveloperLink[] = [
+  {
+    label: 'Project GitHub',
+    url: 'https://github.com/Code-Game-Ninja/Campus-Sphere',
+    icon: 'logo-github',
+  },
+];
+
+/** Team ownership data. Focus areas describe responsibility, not release availability. */
 export const developers: readonly DeveloperProfile[] = [
   {
-    name: 'Aarav Mehta',
-    role: 'Lead Developer',
-    bio: 'Guides the product architecture and turns CampusSphere ideas into reliable experiences for students.',
-    initials: 'AM',
-    links: [
-      {
-        label: 'Project GitHub',
-        url: 'https://github.com/Code-Game-Ninja/Campus-Sphere',
-        icon: 'logo-github',
-      },
+    name: 'Radha',
+    role: 'Security & Testing Engineer',
+    track: 'Dev A · Foundation owner',
+    bio: 'Owns CampusSphere security foundation and verification standards used across every product area.',
+    initials: 'R',
+    focusAreas: [
+      'Authentication, tenant scope, policy checks, and PostgreSQL RLS',
+      'Audit logging, rate limits, signed URLs, and shared security controls',
+      'CI/CD, test infrastructure, and adversarial security coverage',
     ],
   },
   {
-    name: 'Maya Kapoor',
-    role: 'UI/UX Designer',
-    bio: 'Shapes accessible, welcoming interfaces that make campus communities feel simple to explore.',
-    initials: 'MK',
+    name: 'Tanay',
+    role: 'Community Full-Stack Developer',
+    track: 'Dev B · Community track',
+    bio: 'Owns community experiences end to end across API, mobile, and supporting moderation surfaces.',
+    initials: 'T',
+    focusAreas: [
+      'Feed, clubs, communities, polls, and events',
+      'Notifications, connection requests, and realtime chat',
+      'Community APIs, mobile flows, admin surfaces, and module tests',
+    ],
   },
   {
-    name: 'Rohan Verma',
-    role: 'Backend Engineer',
-    bio: 'Builds the secure APIs, data systems, and real-time features that keep CampusSphere connected.',
-    initials: 'RV',
+    name: 'Chirag Mishra',
+    role: 'UI/UX, Frontend & Utility Intelligence Developer',
+    track: 'Dev C · Utility + Intelligence track',
+    bio: 'Leads product UI/UX and frontend delivery while owning utility and intelligence experiences across CampusSphere.',
+    initials: 'CM',
+    focusAreas: [
+      'Mobile UI/UX, frontend systems, accessibility, and product consistency',
+      'Resources, marketplace, profiles, discovery, and Team Finder',
+      'Search, opportunities, and permission-aware AI experiences',
+    ],
   },
 ];

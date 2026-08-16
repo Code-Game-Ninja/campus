@@ -1,0 +1,14 @@
+{
+  "name": "@campussphere/admin-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "node --watch src/server.mjs",
+    "start": "node src/server.mjs",
+    "grant:admin": "node scripts/grant-admin.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check src/server.mjs && node --check src/repository.mjs && node --check src/auth.mjs && node --check src/supabase.mjs && node --check src/config.mjs && node --check scripts/grant-admin.mjs"
+  }
+}

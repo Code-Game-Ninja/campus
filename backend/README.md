@@ -145,6 +145,7 @@ Never put the service-role key in mobile or Git. Sync is idempotent and does not
 - Mobile profile/onboarding RPCs are in `0006_mobile_profile_rpc.sql`.
 - `E:\projects\ChitChat` is read-only reference material only. No ChitChat files, tables, project, or database are edited, imported, renamed, or reused.
 - The prototype no longer contains a mock API, mock session, or mock data fallback. Supported MVP calls use CampusSphere Supabase Auth/PostgREST/RPC/Realtime/Storage. Non-MVP surfaces must remain disabled until their schema is approved.
+- Migration `0031_admin_control_plane.sql` adds the separate admin console authorization model, invitations, event ownership, workspace settings, and service-role moderation bridge. Runtime admin HTTP code lives in `admin-backend`; this directory remains the canonical database migration owner.
 
 Validate locally before every cloud push:
 
