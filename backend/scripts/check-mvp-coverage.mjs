@@ -183,7 +183,7 @@ for (const marker of ['me.data?.campusName', 'Campus not selected']) {
   if (!home.includes(marker)) throw new Error(`Home college label missing: ${marker}`);
 }
 if (!personProfile.includes('profile.campusName')) throw new Error('Public profile college label is missing.');
-for (const marker of ['pickPostMedia', 'uploadPostMedia', 'pollEnabled', '2000']) {
+for (const marker of ['pickPostImage', 'pickPostDocument', 'uploadPostMedia', 'pollEnabled', '2000']) {
   if (!composer.includes(marker)) throw new Error(`Post format UI missing: ${marker}`);
 }
 
