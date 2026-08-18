@@ -14,6 +14,23 @@ export async function verifyOtp(email, token) {
   if (!email || !token) throw new HttpError(400, 'Email and verification code are required.', 'INVALID_OTP_REQUEST');
   const result = await supabaseRequest('auth', 'verify', { method: 'POST', body: { email: email.trim().toLowerCase(), token: token.trim(), type: 'email' } });
   if (!result.data?.access_token || !result.data?.refresh_token) throw new HttpError(502, 'Supabase did not return a valid session.', 'INVALID_AUTH_SESSION');
+  try {
+    const identity = await supabaseRequest('auth', 'user', { token: result.data.access_token });
+    const assignments = identity.data?.id
+      ? await restSelect('admin_assignments', { select: 'role,campus_id', user_id: `eq.${identity.data.id}`, status: 'eq.active', limit: 20 }, { admin: true })
+      : { data: [] };
+    const assignment = chooseAssignment(assignments.data || []);
+    if (identity.data?.id && assignment) {
+      await supabaseRequest('rest', 'audit_logs', {
+        method: 'POST',
+        admin: true,
+        body: { actor_id: identity.data.id, action: 'admin.login', metadata: { source: 'admin-backend', admin_role: assignment.role, campus_id: assignment.campus_id || null } },
+        headers: { Prefer: 'return=minimal' },
+      });
+    }
+  } catch {
+    // Authentication must remain available if audit persistence is temporarily unavailable.
+  }
   return result.data;
 }
 
