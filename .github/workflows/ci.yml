@@ -3,7 +3,7 @@ name: CampusSphere CI
 on:
   pull_request:
   push:
-    branches: [main, feature/mobile-student-boundary]
+    branches: [main, master, feature/mobile-student-boundary]
 
 permissions:
   contents: read
@@ -49,3 +49,18 @@ jobs:
         shell: bash
         run: |
           if git grep -nE '(service_role_secret|BEGIN PRIVATE KEY|sk_live_)' -- ':!*.example'; then exit 1; fi
+
+      - name: Admin backend install
+        working-directory: admin-backend
+        run: npm install --no-audit --no-fund
+      - name: Admin backend checks and tests
+        working-directory: admin-backend
+        run: |
+          npm run check
+          npm test
+      - name: Admin frontend install
+        working-directory: admin-web
+        run: npm ci
+      - name: Admin frontend build
+        working-directory: admin-web
+        run: npm run build
