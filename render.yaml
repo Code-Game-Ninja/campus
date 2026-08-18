@@ -3,7 +3,7 @@ services:
     name: campussphere-admin
     runtime: node
     plan: free
-    buildCommand: npm ci --prefix admin-web && npm run check --prefix admin-backend && npm test --prefix admin-backend && npm run build --prefix admin-web
+    buildCommand: npm ci --include=dev --prefix admin-web && npm run check --prefix admin-backend && npm test --prefix admin-backend && npm run build --prefix admin-web
     startCommand: npm start --prefix admin-backend
     healthCheckPath: /healthz
     envVars:

@@ -44,7 +44,7 @@ The process health endpoint is `GET http://localhost:4180/healthz`. Dependency r
 
 ## Render one-click deployment
 
-The repository root contains `render.yaml`. In Render, choose **New > Blueprint**, connect this repository, and apply the Blueprint. It creates one free web service that builds `admin-web`, runs the backend checks, and serves the dashboard and API from the same URL.
+The repository root contains `render.yaml`. In Render, choose **New > Blueprint**, connect this repository, and apply the Blueprint. It creates one free web service that installs the frontend type packages, builds `admin-web`, runs the backend checks, and serves the dashboard and API from the same URL.
 
 Render will ask for these secret values during setup:
 

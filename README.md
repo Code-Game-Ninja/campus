@@ -100,7 +100,7 @@ Use the project URL, the anon or publishable key, and the service-role secret ke
 
 ### One-click Blueprint (recommended)
 
-The repository root contains `render.yaml`. Choose **New > Blueprint** in Render and select this repository. The Blueprint builds the React dashboard, runs backend checks and tests, starts the Node API, and serves both applications from one URL. Enter the Supabase anon key and service-role key when Render prompts for them.
+The repository root contains `render.yaml`. Choose **New > Blueprint** in Render and select this repository. The Blueprint installs the frontend type packages, builds the React dashboard, runs backend checks and tests, starts the Node API, and serves both applications from one URL. Enter the Supabase anon key and service-role key when Render prompts for them.
 
 After deployment, use the Render URL for both the dashboard and API:
 
