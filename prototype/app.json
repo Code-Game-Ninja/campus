@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "CampusSphere",
-    "slug": "campussphere",
+    "slug": "campus",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "campussphere",
@@ -38,7 +38,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "6f551538-e60f-4bee-b2e1-08c6e5f5c5eb"
+        "projectId": "587f06e9-7320-4f22-8e0e-ec3b8095d40b"
       }
     },
     "owner": "chirag1528"
