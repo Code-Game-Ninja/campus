@@ -46,8 +46,8 @@ async function audit(context, action, targetType = null, targetId = null, metada
   await insert('audit_logs', { actor_id: context.user.id, action, target_type: targetType, target_id: targetId, metadata: { ...metadata, admin_role: context.role, campus_id: context.campusId } });
 }
 
-async function count(table, filters = {}) {
-  const result = await restSelect(table, { select: 'id', ...filters, limit: 1 }, { admin: true, count: true });
+async function count(table, filters = {}, select = 'id') {
+  const result = await restSelect(table, { select, ...filters, limit: 1 }, { admin: true, count: true });
   return result.count ?? (Array.isArray(result.data) ? result.data.length : 0);
 }
 
@@ -71,8 +71,8 @@ export async function dashboard(context) {
     count('reports', { status: 'in.(open,reviewing)' }),
     count('campuses', { status: 'eq.active' }),
     count('admin_assignments', { ...(context.role === 'super_admin' ? {} : { campus_id: `eq.${context.campusId}` }), status: 'eq.active', role: 'eq.event_manager' }),
-    count('event_registrations', { status: 'eq.registered' }),
-    count('event_registrations', { status: 'eq.waitlisted' }),
+    count('event_registrations', { status: 'eq.registered' }, 'event_id'),
+    count('event_registrations', { status: 'eq.waitlisted' }, 'event_id'),
     restSelect('audit_logs', { select: 'id,action,target_type,target_id,metadata,created_at', order: 'created_at.desc', limit: 8 }, { admin: true }),
     count('notifications', { user_id: `eq.${context.user.id}`, in_app_read_at: 'is.null' }),
     restSelect('posts', { select: 'id,created_at', ...campusFilter, created_at: `gte.${new Date(Date.now() - 7 * 86400000).toISOString()}`, order: 'created_at.asc', limit: 100 }, { admin: true }),
