@@ -9,6 +9,6 @@
     "start": "node src/server.mjs",
     "grant:admin": "node scripts/grant-admin.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check src/server.mjs && node --check src/repository.mjs && node --check src/auth.mjs && node --check src/supabase.mjs && node --check src/config.mjs && node --check scripts/grant-admin.mjs"
+    "check": "node --check src/server.mjs && node --check src/repository.mjs && node --check src/auth.mjs && node --check src/supabase.mjs && node --check src/config.mjs && node --check src/static.mjs && node --check scripts/grant-admin.mjs"
   }
 }

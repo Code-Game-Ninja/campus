@@ -4,8 +4,12 @@ import { authenticate, bearer, refreshSession, sendOtp, signOut, verifyOtp } fro
 import { asHttpError, HttpError } from './errors.mjs';
 import { requireRole } from './permissions.mjs';
 import * as repo from './repository.mjs';
+import { serveStatic } from './static.mjs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const jsonHeaders = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' };
+const adminWebRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../admin-web/dist');
 
 function writeJson(response, status, payload) {
   response.writeHead(status, { ...jsonHeaders, 'Access-Control-Allow-Origin': config.allowedOrigin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS' });
@@ -82,6 +86,10 @@ assertConfig();
 const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
+    if (url.pathname !== '/v1' && !url.pathname.startsWith('/v1/') && !['/healthz', '/readyz'].includes(url.pathname)) {
+      if (serveStatic(adminWebRoot, request, response, url.pathname)) return;
+      throw new HttpError(404, 'Admin web asset not found.', 'STATIC_NOT_FOUND');
+    }
     const result = await route(request, url.pathname, url.searchParams);
     if (result.status === 204) { response.writeHead(204, { 'Access-Control-Allow-Origin': config.allowedOrigin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS' }); response.end(); return; }
     writeJson(response, result.status, result.payload);

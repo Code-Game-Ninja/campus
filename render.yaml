@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: campussphere-admin
+    runtime: node
+    plan: free
+    buildCommand: npm ci --prefix admin-web && npm run check --prefix admin-backend && npm test --prefix admin-backend && npm run build --prefix admin-web
+    startCommand: npm start --prefix admin-backend
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 22.17.0
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        value: https://grcvstojrtaafpwtzojf.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ADMIN_ALLOWED_ORIGIN
+        value: '*'

@@ -21,7 +21,7 @@ for (const file of [path.join(root, 'prototype', '.env'), path.join(root, 'backe
 const env = (name) => process.env[name] || fileValues[name] || '';
 
 export const config = {
-  port: Number(env('ADMIN_API_PORT') || env('API_PORT') || 4180),
+  port: Number(env('ADMIN_API_PORT') || env('PORT') || env('API_PORT') || 4180),
   nodeEnv: env('NODE_ENV') || 'development',
   supabaseUrl: (env('SUPABASE_URL') || env('EXPO_PUBLIC_SUPABASE_URL')).replace(/\/+$/, ''),
   anonKey: env('SUPABASE_ANON_KEY') || env('EXPO_PUBLIC_SUPABASE_ANON_KEY'),

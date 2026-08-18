@@ -1,6 +1,6 @@
 import type { Metric, Role, Tone } from '../data';
 
-const API_URL = (import.meta.env.VITE_ADMIN_API_URL || 'http://localhost:4180').replace(/\/+$/, '');
+const API_URL = (import.meta.env.VITE_ADMIN_API_URL || (import.meta.env.DEV ? 'http://localhost:4180' : window.location.origin)).replace(/\/+$/, '');
 const SESSION_KEY = 'campussphere.admin.session';
 
 export type AdminSession = { access_token: string; refresh_token: string; expires_at?: number; expires_in?: number; user?: { id: string; email?: string } };

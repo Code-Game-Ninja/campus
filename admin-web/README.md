@@ -8,9 +8,11 @@ Start `admin-backend` on port `4180`, then run:
 npm run dev
 ```
 
-Set `VITE_ADMIN_API_URL` when the API is not available at `http://localhost:4180`. Authentication uses the existing Supabase email OTP configuration. Roles and campus scope come from `admin_assignments`; they cannot be selected in the browser.
+Set `VITE_ADMIN_API_URL` when the API is not available at `http://localhost:4180`. Production builds default to the current browser origin, which allows the Render Blueprint to serve the dashboard and API from the same URL. Authentication uses the existing Supabase email OTP configuration. Roles and campus scope come from `admin_assignments`; they cannot be selected in the browser.
 
-Design-first mock dashboard for Campus Admin, Event Manager, and Super Admin roles.
+## Render deployment
+
+The repository root `render.yaml` builds this dashboard and starts `admin-backend` as one Render Web Service. In Render, choose **New > Blueprint**, connect the repository, enter the prompted Supabase keys, and deploy.
 
 ## Run
 
@@ -19,11 +21,4 @@ pnpm install
 pnpm --filter @campussphere/admin-web dev
 ```
 
-Open `http://localhost:4174`. Use the **Preview role** selector to inspect each dashboard.
-
-## Current boundary
-
-- All visible data is local mock data.
-- Role navigation and capabilities demonstrate the intended permission model only.
-- No Supabase admin API, service-role key, staff assignment, or database mutation is connected.
-- Backend integration starts after design and flow approval.
+Open `http://localhost:4174`. Live data and mutations are provided by `admin-backend`; the service-role credential remains server-side.

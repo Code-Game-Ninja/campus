@@ -42,6 +42,19 @@ npm run dev
 
 The process health endpoint is `GET http://localhost:4180/healthz`. Dependency readiness is `GET http://localhost:4180/readyz`; it returns `503 SUPABASE_UNAVAILABLE` when the configured project cannot be reached. Protected routes use a Supabase access token in the `Authorization: Bearer` header.
 
+## Render one-click deployment
+
+The repository root contains `render.yaml`. In Render, choose **New > Blueprint**, connect this repository, and apply the Blueprint. It creates one free web service that builds `admin-web`, runs the backend checks, and serves the dashboard and API from the same URL.
+
+Render will ask for these secret values during setup:
+
+```text
+SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+```
+
+The service URL is the dashboard URL. The API is available under the same origin, for example `https://campussphere-admin.onrender.com/v1/me`. The service listens on Render's `PORT` automatically; local development continues to use `ADMIN_API_PORT=4180`.
+
 ## Migration rollback
 
 Rollback is intentionally manual because it removes admin assignments. After exporting any needed audit context, drop `admin_apply_moderation_action_as`, then `event_admin_owners`, `admin_invitations`, `admin_workspace_settings`, and `admin_assignments`. No mobile-owned table needs to be modified.
