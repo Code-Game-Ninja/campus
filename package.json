@@ -1,5 +1,9 @@
 {
   "name": "@campussphere/workspace",
   "version": "0.1.0",
-  "private": true
+  "private": true,
+  "packageManager": "npm@10.9.2",
+  "workspaces": [
+    "prototype"
+  ]
 }
