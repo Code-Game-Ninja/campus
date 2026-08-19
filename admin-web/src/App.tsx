@@ -49,6 +49,7 @@ export function App() {
   const [context, setContext] = useState<AdminContext | null>(null);
   const [booting, setBooting] = useState(true);
   const [section, setSection] = useState('Overview');
+  const [tableFilter, setTableFilter] = useState('all');
   const [viewState, setViewState] = useState<ViewState>('loading');
   const [toast, setToast] = useState('');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -78,8 +79,8 @@ export function App() {
     setCampusOptions(result.records.filter((row) => row.status === 'active').map((row) => ({ id: String(row.id), name: String(row.name), status: String(row.status) })));
   }
 
-  async function refreshSection(target = section) {
-    if (!context) return;
+  async function refreshSection(target = section, filter = tableFilter) {
+    if (!context) return false;
     setViewState('loading'); setTable(null);
     try {
       if (target === 'Overview') await loadDashboard();
@@ -88,12 +89,20 @@ export function App() {
       else if (target === 'Campus Settings' || target === 'Platform Settings') setSettings(await apiGet<WorkspaceSettings>('/v1/settings'));
       else {
         const endpoint = tableEndpoint(target);
-        if (endpoint) { const result = await apiGet<TableData>(`${endpoint}?limit=100`); setTable(result); if (!result.rows.length) { setViewState('empty'); return; } }
+        if (endpoint) {
+          const params = new URLSearchParams({ limit: '100' });
+          params.set('status', filter);
+          const result = await apiGet<TableData>(`${endpoint}?${params.toString()}`);
+          setTable(result);
+          if (!result.rows.length && filter === 'all') { setViewState('empty'); return true; }
+        }
       }
       setViewState('ready');
+      return true;
     } catch (error) {
       setViewState(error instanceof Error && 'status' in error && (error as { status: number }).status === 403 ? 'permission-denied' : 'error');
       notify(error instanceof Error ? error.message : 'The workspace could not load.');
+      return false;
     }
   }
 
@@ -116,7 +125,11 @@ export function App() {
     else setCampusOptions([]);
   }, [role]);
 
-  function navigate(next: string) { setSection(next); requestAnimationFrame(() => document.querySelector<HTMLElement>('.workspace')?.scrollTo({ top: 0, behavior: 'smooth' })); }
+  function navigate(next: string) { setTableFilter('all'); setSection(next); requestAnimationFrame(() => document.querySelector<HTMLElement>('.workspace')?.scrollTo({ top: 0, behavior: 'smooth' })); }
+  async function applyTableFilter(value: string) {
+    setTableFilter(value);
+    if (await refreshSection(section, value)) notify(value === 'all' ? 'Status filter cleared.' : `Showing ${value} records from the live API.`);
+  }
   async function searchWorkspace(query: string) {
     const normalized = query.trim().toLowerCase();
     const target = [...navByRole[role].map((item) => item.label), 'Account Settings', 'Help'].find((label) => label.toLowerCase().includes(normalized));
@@ -188,10 +201,10 @@ export function App() {
     if (section === 'Overview') return <Overview role={role} dashboard={dashboard} onNavigate={navigate} onAction={notify} />;
     if (section === 'Notifications') return <NotificationCenter items={notifications} onRead={readNotification} onReadAll={readAllNotifications} onAction={notify} />;
     if (section === 'Platform Health') return <HealthView role={role} data={health} onRefresh={async () => setHealth(await apiGet<HealthData>('/v1/health'))} onAction={notify} />;
-    if (section === 'Help') return <HelpView onAction={notify} />;
-    if (section === 'Account Settings') return <AccountSettingsView role={role} meta={meta} onAction={notify} />;
+    if (section === 'Help') return <HelpView />;
+    if (section === 'Account Settings') return <AccountSettingsView role={role} meta={meta} onRefresh={async () => { await loadMe(); notify('Identity and permission scope refreshed from the live API.'); }} />;
     if (section === 'Campus Settings' || section === 'Platform Settings') return <SettingsView scope={meta.scope} settings={settings} onSave={saveWorkspaceSettings} onAction={notify} />;
-    if (table) return <DataTable title={copy.title} description={copy.description} scope={meta.scope} columns={table.columns} rows={table.rows} primaryAction={primary?.label} onPrimary={primary ? () => setModal(primary.kind) : undefined} onRowAction={rowAction} onAction={notify} />;
+    if (table) return <DataTable title={copy.title} description={copy.description} scope={meta.scope} columns={table.columns} rows={table.rows} primaryAction={primary?.label} onPrimary={primary ? () => setModal(primary.kind) : undefined} onRowAction={rowAction} onAction={notify} filterValue={tableFilter} onFilterChange={applyTableFilter} />;
     return <StateView state="empty" onReset={() => void refreshSection(section)} />;
   }
 
@@ -200,7 +213,7 @@ export function App() {
     <main className="main-content"><Header role={role} meta={meta} onSearch={searchWorkspace} onAccountSettings={() => navigate('Account Settings')} onNotifications={() => setNotificationsOpen(true)} onSignOut={() => void logout()} unread={unread} />
       <div className={`workspace ${section === 'Overview' ? 'workspace-overview' : ''} ${isListSection ? 'workspace-list' : ''}`}>
         {section !== 'Overview' && <div className="breadcrumb"><button onClick={() => navigate('Overview')}>Overview</button><span>/</span><strong>{section}</strong></div>}
-        <ScopeBar role={role} meta={meta} onAction={notify} />
+        <ScopeBar role={role} meta={meta} onNavigate={navigate} />
         <div className="page-heading"><div><span className="eyebrow">{meta.scope}</span><h1>{heading.title}</h1><p>{heading.description}</p></div><div className="heading-actions"><button className="button button-secondary" onClick={exportTable}><Download size={14} />Export</button>{section === 'Overview' && <button className="button button-primary" onClick={() => setModal(role === 'event_manager' ? 'event' : role === 'super_admin' ? 'campus' : 'manager')}><Plus size={14} />{role === 'event_manager' ? 'New event' : role === 'super_admin' ? 'Add campus' : 'Invite manager'}</button>}</div></div>
         <div className="page-transition" key={`${role}-${section}`}>{mainContent()}</div>
       </div>
@@ -213,7 +226,7 @@ export function App() {
 
 function Overview({ role, dashboard, onNavigate, onAction }: { role: Role; dashboard: DashboardData | null; onNavigate: (label: string) => void; onAction: (message: string) => void }) {
   const metrics = dashboard?.metrics || [];
-  return <section className="overview page-enter"><div className="metrics-grid">{metrics.map((metric, index) => <MetricCard metric={metric} index={index} key={metric.label} />)}</div><div className="analytics-grid"><TrendChart role={role} value={metrics[0]?.display || '0'} onAction={onAction} /><ProgressPanel role={role} value={dashboard?.health.value} onAction={onAction} />{role === 'super_admin' && <CampusMap onAction={onAction} />}</div><div className="operations-grid"><ActivityPanel items={dashboard?.activity} onAction={onAction} /><QuickActions role={role} onNavigate={onNavigate} onAction={onAction} /></div></section>;
+  return <section className="overview page-enter"><div className="metrics-grid">{metrics.map((metric, index) => <MetricCard metric={metric} index={index} key={metric.label} />)}</div><div className="analytics-grid"><TrendChart role={role} value={metrics[0]?.display || '0'} onNavigate={onNavigate} /><ProgressPanel role={role} value={dashboard?.health.value} onNavigate={onNavigate} />{role === 'super_admin' && <CampusMap onNavigate={onNavigate} />}</div><div className="operations-grid"><ActivityPanel role={role} items={dashboard?.activity} onNavigate={onNavigate} /><QuickActions role={role} onNavigate={onNavigate} onAction={onAction} /></div></section>;
 }
 
 function WorkflowModal({ kind, role, campuses, onClose, onSubmit }: { kind: Exclude<ModalKind, null>; role: Role; campuses: CampusOption[]; onClose: () => void; onSubmit: (kind: Exclude<ModalKind, null>, values: Record<string, string>) => Promise<void> }) {

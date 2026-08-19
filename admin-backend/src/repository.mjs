@@ -10,6 +10,15 @@ function pageParams(searchParams) {
   return { page, limit, offset: (page - 1) * limit };
 }
 
+function statusFilter(searchParams, fallback = null) {
+  const raw = searchParams.get('status');
+  if (raw === null || raw.trim() === '') return fallback ? { status: fallback } : {};
+  const status = raw.trim().toLowerCase();
+  if (status === 'all') return {};
+  if (!/^[a-z][a-z0-9_]*$/.test(status)) throw new HttpError(400, 'Invalid status filter.', 'INVALID_STATUS_FILTER');
+  return { status: `eq.${status}` };
+}
+
 function inFilter(ids) { return ids.length ? `in.(${ids.join(',')})` : null; }
 
 async function insert(table, body) {
@@ -145,7 +154,7 @@ export async function listPosts(context, searchParams) {
   requireRole(context, ['campus_admin', 'super_admin']);
   const { page, limit, offset } = pageParams(searchParams);
   const filter = context.role === 'super_admin' ? {} : { campus_id: `eq.${context.campusId}` };
-  const result = await restSelect('posts', { select: 'id,author_id,campus_id,body,visibility,status,created_at,updated_at', ...filter, order: 'created_at.desc', limit, offset }, { admin: true, count: true });
+  const result = await restSelect('posts', { select: 'id,author_id,campus_id,body,visibility,status,created_at,updated_at', ...filter, ...statusFilter(searchParams), order: 'created_at.desc', limit, offset }, { admin: true, count: true });
   const records = result.data || [];
   const labels = await userLabels(records.map((row) => row.author_id));
   const reports = records.length ? await restSelect('reports', { select: 'target_id,status', target_type: 'eq.post', target_id: inFilter(records.map((row) => row.id)) }, { admin: true }) : { data: [] };
@@ -181,7 +190,7 @@ export async function updatePostStatus(context, id, status) {
 export async function listModeration(context, searchParams) {
   requireRole(context, ['campus_admin', 'super_admin']);
   const { page, limit, offset } = pageParams(searchParams);
-  const result = await restSelect('reports', { select: 'id,reporter_id,target_type,target_id,reason_code,details,status,resolution,created_at', status: 'in.(open,reviewing)', order: 'created_at.asc', limit, offset }, { admin: true, count: true });
+  const result = await restSelect('reports', { select: 'id,reporter_id,target_type,target_id,reason_code,details,status,resolution,created_at', ...statusFilter(searchParams, 'in.(open,reviewing)'), order: 'created_at.asc', limit, offset }, { admin: true, count: true });
   const rows = result.data || [];
   const labels = await userLabels(rows.map((row) => row.reporter_id));
   const posts = rows.filter((row) => row.target_type === 'post').length ? await restSelect('posts', { select: 'id,campus_id,body', id: inFilter(rows.filter((row) => row.target_type === 'post').map((row) => row.target_id)) }, { admin: true }) : { data: [] };
@@ -208,7 +217,7 @@ async function eventRows(context, searchParams) {
   const ids = await visibleEventIds(context);
   if (ids && !ids.length) return { rows: [], count: 0, page, limit };
   const filter = ids ? { id: inFilter(ids) } : context.role === 'super_admin' ? {} : { campus_id: `eq.${context.campusId}` };
-  const result = await restSelect('events', { select: 'id,organizer_id,campus_id,title,summary,venue_name,starts_at,ends_at,capacity,status,created_at,updated_at', ...filter, order: 'starts_at.asc', limit, offset }, { admin: true, count: true });
+  const result = await restSelect('events', { select: 'id,organizer_id,campus_id,title,summary,venue_name,starts_at,ends_at,capacity,status,created_at,updated_at', ...filter, ...statusFilter(searchParams), order: 'starts_at.asc', limit, offset }, { admin: true, count: true });
   return { rows: result.data || [], count: result.count ?? (result.data?.length || 0), page, limit };
 }
 
@@ -256,9 +265,9 @@ export async function listRegistrations(context, searchParams) {
   const ids = await visibleEventIds(context);
   if (ids && !ids.length) return { records: [], total: 0, columns: ['Event', 'Attendee', 'Status', 'Created'], rows: [] };
   const filter = ids ? { event_id: inFilter(ids) } : context.role === 'super_admin' ? {} : {};
-  const result = await restSelect('event_registrations', { select: 'event_id,user_id,status,waitlist_position,created_at', ...filter, order: 'created_at.desc', limit, offset }, { admin: true, count: true });
+  const result = await restSelect('event_registrations', { select: 'event_id,user_id,status,waitlist_position,created_at', ...filter, ...statusFilter(searchParams), order: 'created_at.desc', limit, offset }, { admin: true, count: true });
   const rows = result.data || [];
-  const [events, labels] = await Promise.all([restSelect('events', { select: 'id,title', id: inFilter(rows.map((row) => row.event_id)) }, { admin: true }), userLabels(rows.map((row) => row.user_id))]);
+  const [events, labels] = await Promise.all([rows.length ? restSelect('events', { select: 'id,title', id: inFilter(rows.map((row) => row.event_id)) }, { admin: true }) : Promise.resolve({ data: [] }), userLabels(rows.map((row) => row.user_id))]);
   const eventMap = new Map((events.data || []).map((row) => [row.id, row.title]));
   const records = rows.map((row) => ({ ...row, event: eventMap.get(row.event_id) || row.event_id, attendee: labels.get(row.user_id)?.displayName || row.user_id }));
   return { records, total: result.count ?? records.length, page, limit, columns: ['Event', 'Attendee', 'Status', 'Created'], rows: records.map((row) => [row.event, row.attendee, row.status, new Date(row.created_at).toLocaleString('en-IN')]) };
@@ -268,7 +277,7 @@ export async function listStaff(context, searchParams) {
   requireRole(context, ['campus_admin', 'super_admin']);
   const filter = context.role === 'super_admin' ? {} : { campus_id: `eq.${context.campusId}` };
   const { page, limit, offset } = pageParams(searchParams);
-  const result = await restSelect('admin_assignments', { select: 'id,user_id,role,campus_id,status,created_at', ...filter, status: 'eq.active', order: 'created_at.desc', limit, offset }, { admin: true, count: true });
+  const result = await restSelect('admin_assignments', { select: 'id,user_id,role,campus_id,status,created_at', ...filter, ...statusFilter(searchParams, 'eq.active'), order: 'created_at.desc', limit, offset }, { admin: true, count: true });
   const rows = result.data || [];
   const labels = await userLabels(rows.map((row) => row.user_id));
   const campuses = rows.length ? await restSelect('campuses', { select: 'id,name', id: inFilter(rows.map((row) => row.campus_id).filter(Boolean)) }, { admin: true }) : { data: [] };
@@ -327,7 +336,7 @@ export async function revokeStaff(context, id) {
 export async function listCampuses(context, searchParams) {
   requireRole(context, ['super_admin']);
   const { page, limit, offset } = pageParams(searchParams);
-  const result = await restSelect('campuses', { select: 'id,name,slug,country_code,timezone,status,created_at', order: 'name.asc', limit, offset }, { admin: true, count: true });
+  const result = await restSelect('campuses', { select: 'id,name,slug,country_code,timezone,status,created_at', ...statusFilter(searchParams), order: 'name.asc', limit, offset }, { admin: true, count: true });
   const rows = result.data || [];
   const users = rows.length ? await restSelect('users', { select: 'id,campus_id', campus_id: inFilter(rows.map((row) => row.id)), status: 'eq.active' }, { admin: true }) : { data: [] };
   const counts = new Map();

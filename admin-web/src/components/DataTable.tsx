@@ -1,4 +1,4 @@
-import { Filter, MoreHorizontal, Search, SlidersHorizontal } from 'lucide-react';
+import { Check, Filter, MoreHorizontal, Search, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 const PAGE_SIZE = 5;
@@ -18,10 +18,17 @@ function pageItems(page: number, pageCount: number): Array<number | 'ellipsis'> 
   return [1, 'ellipsis', page - 1, page, page + 1, 'ellipsis', pageCount];
 }
 
-export function DataTable({ title, description, scope, columns, rows, primaryAction, onPrimary, onAction, onRowAction }: { title: string; description: string; scope: string; columns: string[]; rows: string[][]; primaryAction?: string; onPrimary?: () => void; onAction: (message: string) => void; onRowAction?: (index: number) => void }) {
+const STATUS_FILTERS = ['all', 'active', 'pending', 'published', 'draft', 'hidden', 'removed', 'deleted', 'reviewing', 'open', 'resolved', 'registered', 'waitlisted', 'attended', 'revoked', 'cancelled', 'completed', 'inactive'];
+
+export function DataTable({ title, description, scope, columns, rows, primaryAction, onPrimary, onAction, onRowAction, filterValue = 'all', onFilterChange }: { title: string; description: string; scope: string; columns: string[]; rows: string[][]; primaryAction?: string; onPrimary?: () => void; onAction: (message: string) => void; onRowAction?: (index: number) => void; filterValue?: string; onFilterChange?: (value: string) => void | Promise<void> }) {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
-  const filtered = useMemo(() => rows.filter((row) => row.join(' ').toLowerCase().includes(query.toLowerCase())), [query, rows]);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+  const statusColumn = columns.findIndex((column) => column.toLowerCase() === 'status');
+  const filtered = useMemo(() => rows.filter((row) => row.join(' ').toLowerCase().includes(query.toLowerCase()) && (filterValue === 'all' || statusColumn < 0 || row[statusColumn]?.toLowerCase() === filterValue)), [filterValue, query, rows, statusColumn]);
+  const visibleColumns = useMemo(() => columns.map((column, index) => ({ column, index })).filter(({ column }) => !hiddenColumns.includes(column)), [columns, hiddenColumns]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
   const visibleRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -38,15 +45,15 @@ export function DataTable({ title, description, scope, columns, rows, primaryAct
         <label className="table-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${title.toLowerCase()}`} aria-label={`Search ${title}`} /></label>
         <div className="table-actions">
           {primaryAction && <button className="button button-primary" onClick={onPrimary}>{primaryAction}</button>}
-          <button className="button button-secondary" onClick={() => onAction('Filters are ready for API-backed data.')}><Filter size={14} />Filter</button>
-          <button className="icon-button" onClick={() => onAction('Column preferences saved locally.')} aria-label="Configure columns"><SlidersHorizontal size={16} /></button>
+          {statusColumn >= 0 && <div className="table-menu-wrap"><button className={`button button-secondary ${filterValue !== 'all' ? 'is-active' : ''}`} onClick={() => { setFilterOpen((open) => !open); setColumnsOpen(false); }}><Filter size={14} />{filterValue === 'all' ? 'Filter' : `Status: ${filterValue}`}</button>{filterOpen && <div className="table-menu" role="menu"><strong>Status</strong>{STATUS_FILTERS.map((status) => <button key={status} role="menuitem" className={filterValue === status ? 'selected' : ''} onClick={() => { void onFilterChange?.(status); setFilterOpen(false); setPage(1); }}>{status === 'all' ? 'All statuses' : status}{filterValue === status && <Check size={14} />}</button>)}</div>}</div>}
+          <div className="table-menu-wrap"><button className="icon-button" onClick={() => { setColumnsOpen((open) => !open); setFilterOpen(false); }} aria-label="Configure columns" title="Configure columns"><SlidersHorizontal size={16} /></button>{columnsOpen && <div className="table-menu table-menu-columns" role="menu"><strong>Columns</strong>{columns.map((column) => { const hidden = hiddenColumns.includes(column); const lastVisible = !hidden && visibleColumns.length === 1; return <button key={column} role="menuitem" disabled={lastVisible} onClick={() => setHiddenColumns((current) => hidden ? current.filter((item) => item !== column) : [...current, column])}><span className={hidden ? 'column-off' : 'column-on'}>{hidden ? ' ' : <Check size={14} />}</span>{column}</button>; })}</div>}</div>
         </div>
       </div>
       <div className="table-wrap">
         <table>
           <caption className="sr-only">{title}. {description} Scope: {scope}.</caption>
-          <thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}<th><span className="sr-only">Actions</span></th></tr></thead>
-          <tbody>{visibleRows.map((row, index) => { const recordIndex = filtered.indexOf(row); return <tr key={`${row[0]}-${(safePage - 1) * PAGE_SIZE + index}`}>{row.map((cell, cellIndex) => <td key={`${cell}-${cellIndex}`}>{cellIndex === row.length - 1 ? <span className={`status-pill ${statusTone(cell)}`}><i />{cell}</span> : cell}</td>)}<td><button className="row-button" onClick={() => onRowAction ? onRowAction(recordIndex) : onAction(`Opened ${row[0]}.`)} aria-label={`Open actions for ${row[0]}`}><MoreHorizontal size={17} /></button></td></tr>; })}</tbody>
+          <thead><tr>{visibleColumns.map(({ column }) => <th key={column}>{column}</th>)}<th><span className="sr-only">Actions</span></th></tr></thead>
+          <tbody>{visibleRows.map((row, index) => { const recordIndex = rows.indexOf(row); return <tr key={`${row[0]}-${(safePage - 1) * PAGE_SIZE + index}`}>{visibleColumns.map(({ index: cellIndex }) => { const cell = row[cellIndex]; return <td key={`${cell}-${cellIndex}`}>{cellIndex === statusColumn ? <span className={`status-pill ${statusTone(cell)}`}><i />{cell}</span> : cell}</td>; })}<td><button className="row-button" onClick={() => onRowAction ? onRowAction(recordIndex) : onAction(`Opened ${row[0]}.`)} aria-label={`Open actions for ${row[0]}`}><MoreHorizontal size={17} /></button></td></tr>; })}</tbody>
         </table>
         {filtered.length === 0 && <div className="table-empty"><Search size={22} /><strong>No matching results</strong><span>Try a shorter name, status, or owner.</span></div>}
       </div>
