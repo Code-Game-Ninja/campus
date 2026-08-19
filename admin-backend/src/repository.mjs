@@ -220,13 +220,24 @@ export async function listModeration(context, searchParams) {
   const commentPostMap = new Map((commentPosts.data || []).map((row) => [row.id, row]));
   const campusIds = await Promise.all(rows.map((row) => reportTargetCampusId(row)));
   const scoped = rows.filter((row, index) => context.role === 'super_admin' || canAccessCampus(context, campusIds[index]));
-  const records = scoped.map((row) => {
+  const cases = new Map();
+  for (const row of scoped) {
+    const key = `${row.target_type}:${row.target_id}`;
+    if (!cases.has(key)) cases.set(key, []);
+    cases.get(key).push(row);
+  }
+  const records = [...cases.values()].map((caseReports) => {
+    const row = caseReports[0];
     const target = targetMaps.get(row.target_type)?.get(row.target_id);
     const targetText = row.target_type === 'message' ? target?.text : row.target_type === 'comment' ? target?.body : row.target_type === 'post' ? target?.body : row.target_type === 'event' || row.target_type === 'team_request' ? target?.title : row.target_type === 'team_application' ? target?.message : row.target_type === 'user' ? target?.email : null;
     const targetStatus = target?.status || null;
-    return { ...row, reporter: labels.get(row.reporter_id)?.displayName || row.reporter_id, target: `${row.target_type}: ${String(targetText || row.target_id)}`.slice(0, 180), targetStatus, targetRecord: target || null, targetCampusId: campusIds[rows.indexOf(row)] || null, parentPost: row.target_type === 'comment' ? commentPostMap.get(target?.post_id) || null : null };
+    const reporters = [...new Set(caseReports.map((report) => labels.get(report.reporter_id)?.displayName || report.reporter_id))];
+    const reasons = [...new Set(caseReports.map((report) => report.reason_code).filter(Boolean))];
+    const details = [...new Set(caseReports.map((report) => report.details?.trim()).filter(Boolean))];
+    const status = caseReports.some((report) => report.status === 'reviewing') ? 'reviewing' : row.status;
+    return { ...row, status, reportIds: caseReports.map((report) => report.id), reportCount: caseReports.length, reporter: reporters.length === 1 ? reporters[0] : `${reporters.length} reporters`, reason_code: reasons.join(', '), details: details.join(' | ') || null, target: `${row.target_type}: ${String(targetText || row.target_id)}`.slice(0, 180), targetStatus, targetRecord: target || null, targetCampusId: campusIds[rows.indexOf(row)] || null, parentPost: row.target_type === 'comment' ? commentPostMap.get(target?.post_id) || null : null };
   });
-  return { records, total: result.count ?? records.length, page, limit, columns: ['Report', 'Reporter', 'Reason', 'Details', 'Status'], rows: records.map((row) => [row.target, row.reporter, row.reason_code, row.details || 'No details provided', row.status]) };
+  return { records, total: records.length, page, limit, columns: ['Report', 'Reports', 'Reporter', 'Reason', 'Details', 'Status'], rows: records.map((row) => [row.target, String(row.reportCount), row.reporter, row.reason_code, row.details || 'No details provided', row.status]) };
 }
 
 export async function applyModeration(context, reportId, body) {
@@ -237,6 +248,8 @@ export async function applyModeration(context, reportId, body) {
   if (!report) throw new HttpError(404, 'Report not found.', 'REPORT_NOT_FOUND');
   requireCampus(context, await reportTargetCampusId(report));
   const result = await restRpc('admin_apply_moderation_action_as', { p_actor_id: context.user.id, p_report_id: reportId, p_action: body.action, p_reason: body.reason || null }, { admin: true });
+  const status = body.action === 'dismiss' ? 'dismissed' : body.action === 'escalate' ? 'reviewing' : 'resolved';
+  await update('reports', { target_type: `eq.${report.target_type}`, target_id: `eq.${report.target_id}`, status: 'in.(open,reviewing)' }, { status, resolution: body.reason || body.action, resolved_by: context.user.id, resolved_at: body.action === 'escalate' ? null : new Date().toISOString() });
   return result.data;
 }
 
