@@ -21,6 +21,7 @@ import { apiDelete, apiGet, apiPatch, apiPost, hasSession, signOut, tableEndpoin
 
 type ModalKind = 'event' | 'manager' | 'campus' | 'post' | null;
 type HealthData = { status: string; latencyMs: number; checkedAt: string; services: Array<{ name: string; status: string }> };
+type CampusOption = { id: string; name: string; status: string };
 
 const pageCopy: Record<string, { title: string; description: string }> = {
   Overview: { title: 'Overview', description: 'Live operating data for your active permission scope.' },
@@ -57,6 +58,7 @@ export function App() {
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [settings, setSettings] = useState<WorkspaceSettings | null>(null);
   const [health, setHealth] = useState<HealthData | null>(null);
+  const [campusOptions, setCampusOptions] = useState<CampusOption[]>([]);
 
   const role: Role = context?.role || 'campus_admin';
   const baseMeta = roleMeta[role];
@@ -70,6 +72,11 @@ export function App() {
   async function loadMe() { const next = await apiGet<AdminContext>('/v1/me'); setContext(next); return next; }
   async function loadNotifications() { const result = await apiGet<{ records: NotificationRecord[] }>('/v1/notifications?limit=100'); setNotifications(result.records); }
   async function loadDashboard() { setDashboard(await apiGet<DashboardData>('/v1/dashboard')); }
+  async function loadCampusOptions() {
+    if (role !== 'super_admin') return;
+    const result = await apiGet<TableData>('/v1/campuses?limit=100');
+    setCampusOptions(result.records.filter((row) => row.status === 'active').map((row) => ({ id: String(row.id), name: String(row.name), status: String(row.status) })));
+  }
 
   async function refreshSection(target = section) {
     if (!context) return;
@@ -104,6 +111,11 @@ export function App() {
     void Promise.all([refreshSection(section), loadNotifications()]);
   }, [context?.user.id, section]);
 
+  useEffect(() => {
+    if (role === 'super_admin') void loadCampusOptions().catch((error) => notify(error instanceof Error ? error.message : 'Campus list could not load.'));
+    else setCampusOptions([]);
+  }, [role]);
+
   function navigate(next: string) { setSection(next); requestAnimationFrame(() => document.querySelector<HTMLElement>('.workspace')?.scrollTo({ top: 0, behavior: 'smooth' })); }
   async function searchWorkspace(query: string) {
     const normalized = query.trim().toLowerCase();
@@ -123,10 +135,10 @@ export function App() {
   async function saveWorkspaceSettings(next: WorkspaceSettings) { await apiPatch('/v1/settings', { displayName: next.display_name, supportEmail: next.support_email, adminNotice: next.admin_notice, digestEnabled: next.digest_enabled, moderationAlerts: next.moderation_alerts }); setSettings(next); }
 
   async function submitWorkflow(kind: Exclude<ModalKind, null>, values: Record<string, string>) {
-    if (kind === 'event') await apiPost('/v1/events', { title: values.title, description: values.description, summary: values.description, startsAt: new Date(values.startsAt).toISOString(), endsAt: new Date(values.endsAt).toISOString(), venueName: values.venueName, capacity: values.capacity });
-    if (kind === 'manager') await apiPost('/v1/staff/invite', { email: values.email, role: values.role || 'event_manager', campusId: context?.campusId });
+    if (kind === 'event') await apiPost('/v1/events', { title: values.title, description: values.description, summary: values.description, startsAt: new Date(values.startsAt).toISOString(), endsAt: new Date(values.endsAt).toISOString(), venueName: values.venueName, capacity: values.capacity, campusId: values.campusId || context?.campusId });
+    if (kind === 'manager') await apiPost('/v1/staff/invite', { email: values.email, role: values.role || 'event_manager', campusId: values.campusId || context?.campusId });
     if (kind === 'campus') await apiPost('/v1/campuses', { name: values.name, slug: values.slug, countryCode: values.countryCode || 'IN' });
-    if (kind === 'post') await apiPost('/v1/posts', { body: values.body, visibility: values.visibility || 'campus' });
+    if (kind === 'post') await apiPost('/v1/posts', { body: values.body, visibility: values.visibility || 'campus', campusId: values.campusId || context?.campusId });
     setModal(null); notify(`${kind[0].toUpperCase()}${kind.slice(1)} workflow completed.`); await Promise.all([refreshSection(section), loadDashboard()]);
   }
 
@@ -195,7 +207,7 @@ export function App() {
     </main>
     {notificationsOpen && <Notifications items={notifications} onClose={() => setNotificationsOpen(false)} onRead={async (id) => { await readNotification(id); setNotificationsOpen(false); }} onReadAll={readAllNotifications} onViewAll={() => { setNotificationsOpen(false); navigate('Notifications'); }} />}
     {toast && <Toast message={toast} onClose={() => setToast('')} />}
-    {modal && <WorkflowModal kind={modal} role={role} onClose={() => setModal(null)} onSubmit={submitWorkflow} />}
+    {modal && <WorkflowModal kind={modal} role={role} campuses={campusOptions} onClose={() => setModal(null)} onSubmit={submitWorkflow} />}
   </div>;
 }
 
@@ -204,14 +216,14 @@ function Overview({ role, dashboard, onNavigate, onAction }: { role: Role; dashb
   return <section className="overview page-enter"><div className="metrics-grid">{metrics.map((metric, index) => <MetricCard metric={metric} index={index} key={metric.label} />)}</div><div className="analytics-grid"><TrendChart role={role} value={metrics[0]?.display || '0'} onAction={onAction} /><ProgressPanel role={role} value={dashboard?.health.value} onAction={onAction} />{role === 'super_admin' && <CampusMap onAction={onAction} />}</div><div className="operations-grid"><ActivityPanel items={dashboard?.activity} onAction={onAction} /><QuickActions role={role} onNavigate={onNavigate} onAction={onAction} /></div></section>;
 }
 
-function WorkflowModal({ kind, role, onClose, onSubmit }: { kind: Exclude<ModalKind, null>; role: Role; onClose: () => void; onSubmit: (kind: Exclude<ModalKind, null>, values: Record<string, string>) => Promise<void> }) {
+function WorkflowModal({ kind, role, campuses, onClose, onSubmit }: { kind: Exclude<ModalKind, null>; role: Role; campuses: CampusOption[]; onClose: () => void; onSubmit: (kind: Exclude<ModalKind, null>, values: Record<string, string>) => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const titles = { event: 'Create event draft', manager: 'Invite admin staff', campus: 'Add campus', post: 'Create campus post' };
   async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setBusy(true); try { const values = Object.fromEntries(new FormData(event.currentTarget).entries()) as Record<string, string>; await onSubmit(kind, values); } finally { setBusy(false); } }
   return <Modal title={titles[kind]} description="This workflow writes to the shared CampusSphere database and records sensitive actions." onClose={onClose}><form onSubmit={submit}><div className="form-fields">
-    {kind === 'event' && <><label><span>Event name</span><input name="title" required /></label><label><span>Venue</span><input name="venueName" /></label><label><span>Starts</span><input name="startsAt" type="datetime-local" required /></label><label><span>Ends</span><input name="endsAt" type="datetime-local" required /></label><label><span>Capacity</span><input name="capacity" type="number" min="1" /></label><label className="field-wide"><span>Description</span><textarea name="description" rows={4} required /></label></>}
-    {kind === 'manager' && <><label><span>Work email</span><input name="email" type="email" required /></label><label><span>Role</span><select name="role" defaultValue={role === 'super_admin' ? 'campus_admin' : 'event_manager'}><option value="event_manager">Event Manager</option>{role === 'super_admin' && <option value="campus_admin">Campus Admin</option>}{role === 'super_admin' && <option value="super_admin">Super Admin</option>}</select></label></>}
+    {kind === 'event' && <><label><span>Event name</span><input name="title" required /></label>{role === 'super_admin' && <label><span>Campus</span><select name="campusId" required defaultValue=""><option value="" disabled>Select a campus</option>{campuses.map((campus) => <option value={campus.id} key={campus.id}>{campus.name}</option>)}</select></label>}<label><span>Venue</span><input name="venueName" /></label><label><span>Starts</span><input name="startsAt" type="datetime-local" required /></label><label><span>Ends</span><input name="endsAt" type="datetime-local" required /></label><label><span>Capacity</span><input name="capacity" type="number" min="1" /></label><label className="field-wide"><span>Description</span><textarea name="description" rows={4} required /></label></>}
+    {kind === 'manager' && <><label><span>Work email</span><input name="email" type="email" required /></label><label><span>Role</span><select name="role" defaultValue={role === 'super_admin' ? 'campus_admin' : 'event_manager'}><option value="event_manager">Event Manager</option>{role === 'super_admin' && <option value="campus_admin">Campus Admin</option>}{role === 'super_admin' && <option value="super_admin">Super Admin</option>}</select></label>{role === 'super_admin' && <label><span>Campus</span><select name="campusId" defaultValue=""><option value="">Global (Super Admin only)</option>{campuses.map((campus) => <option value={campus.id} key={campus.id}>{campus.name}</option>)}</select></label>}</>}
     {kind === 'campus' && <><label><span>Campus name</span><input name="name" required /></label><label><span>Slug</span><input name="slug" pattern="[a-z0-9-]+" required /></label><label><span>Country code</span><input name="countryCode" defaultValue="IN" maxLength={2} required /></label></>}
-    {kind === 'post' && <><label className="field-wide"><span>Post content</span><textarea name="body" rows={5} required maxLength={2000} /></label><label><span>Visibility</span><select name="visibility" defaultValue="campus"><option value="campus">Campus</option><option value="global">Global</option></select></label></>}
+    {kind === 'post' && <><label className="field-wide"><span>Post content</span><textarea name="body" rows={5} required maxLength={2000} /></label>{role === 'super_admin' && <label><span>Campus</span><select name="campusId" required defaultValue=""><option value="" disabled>Select a campus</option>{campuses.map((campus) => <option value={campus.id} key={campus.id}>{campus.name}</option>)}</select></label>}<label><span>Visibility</span><select name="visibility" defaultValue="campus"><option value="campus">Campus</option><option value="global">Global</option></select></label></>}
   </div><div className="modal-actions"><button type="button" className="button button-secondary" onClick={onClose}><X size={14} />Cancel</button><button type="submit" className="button button-primary" disabled={busy}>{busy ? 'Saving...' : 'Save'}<ArrowUpRight size={14} /></button></div></form></Modal>;
 }

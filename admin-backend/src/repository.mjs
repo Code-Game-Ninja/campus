@@ -1,6 +1,6 @@
 import { HttpError } from './errors.mjs';
 import { restRpc, restSelect, supabaseRequest } from './supabase.mjs';
-import { canAccessCampus, requireCampus, requireContextCampus, requireRole } from './permissions.mjs';
+import { canAccessCampus, requireCampus, requireContextCampus, requireRole, requireRoleGrant } from './permissions.mjs';
 
 const limitMax = 100;
 
@@ -62,6 +62,52 @@ async function visibleEventIds(context) {
   return owners.data?.map((row) => row.event_id) || [];
 }
 
+async function reportTargetCampusId(report) {
+  const directTables = {
+    post: 'posts',
+    event: 'events',
+    team_request: 'team_requests',
+    resource: 'resources',
+  };
+  const directTable = directTables[report.target_type];
+  if (directTable) {
+    const result = await restSelect(directTable, { select: 'campus_id', id: `eq.${report.target_id}`, limit: 1 }, { admin: true });
+    return result.data?.[0]?.campus_id || null;
+  }
+  if (report.target_type === 'user') {
+    const result = await restSelect('users', { select: 'campus_id', id: `eq.${report.target_id}`, limit: 1 }, { admin: true });
+    return result.data?.[0]?.campus_id || null;
+  }
+  if (report.target_type === 'comment') {
+    const comment = await restSelect('comments', { select: 'post_id', id: `eq.${report.target_id}`, limit: 1 }, { admin: true });
+    const postId = comment.data?.[0]?.post_id;
+    if (!postId) return null;
+    const post = await restSelect('posts', { select: 'campus_id', id: `eq.${postId}`, limit: 1 }, { admin: true });
+    return post.data?.[0]?.campus_id || null;
+  }
+  if (report.target_type === 'message') {
+    const message = await restSelect('messages', { select: 'sender_id', id: `eq.${report.target_id}`, limit: 1 }, { admin: true });
+    const senderId = message.data?.[0]?.sender_id;
+    if (!senderId) return null;
+    const sender = await restSelect('users', { select: 'campus_id', id: `eq.${senderId}`, limit: 1 }, { admin: true });
+    return sender.data?.[0]?.campus_id || null;
+  }
+  if (report.target_type === 'team_application') {
+    const application = await restSelect('team_applications', { select: 'team_request_id', id: `eq.${report.target_id}`, limit: 1 }, { admin: true });
+    const requestId = application.data?.[0]?.team_request_id;
+    if (!requestId) return null;
+    const request = await restSelect('team_requests', { select: 'campus_id', id: `eq.${requestId}`, limit: 1 }, { admin: true });
+    return request.data?.[0]?.campus_id || null;
+  }
+  return null;
+}
+
+async function requireActiveCampus(campusId) {
+  if (!campusId) throw new HttpError(400, 'Select a campus for this scoped role.', 'CAMPUS_REQUIRED');
+  const result = await restSelect('campuses', { select: 'id', id: `eq.${campusId}`, status: 'eq.active', limit: 1 }, { admin: true });
+  if (!result.data?.length) throw new HttpError(400, 'The selected campus is not active or does not exist.', 'CAMPUS_INVALID');
+}
+
 export async function dashboard(context) {
   const campusFilter = context.role === 'super_admin' ? {} : { campus_id: `eq.${context.campusId}` };
   const [members, events, posts, reports, campuses, staff, registrations, waitlisted, auditRows, notifications, recentPosts] = await Promise.all([
@@ -96,6 +142,7 @@ export async function dashboard(context) {
 }
 
 export async function listPosts(context, searchParams) {
+  requireRole(context, ['campus_admin', 'super_admin']);
   const { page, limit, offset } = pageParams(searchParams);
   const filter = context.role === 'super_admin' ? {} : { campus_id: `eq.${context.campusId}` };
   const result = await restSelect('posts', { select: 'id,author_id,campus_id,body,visibility,status,created_at,updated_at', ...filter, order: 'created_at.desc', limit, offset }, { admin: true, count: true });
@@ -111,6 +158,7 @@ export async function listPosts(context, searchParams) {
 export async function createPost(context, body) {
   requireRole(context, ['campus_admin', 'super_admin']);
   const campusId = context.role === 'super_admin' ? body.campusId : context.campusId;
+  await requireActiveCampus(campusId);
   requireCampus(context, campusId);
   if (!body.body?.trim()) throw new HttpError(400, 'Post content is required.', 'POST_BODY_REQUIRED');
   const row = await insert('posts', { author_id: context.user.id, campus_id: campusId, body: body.body.trim(), visibility: body.visibility || 'campus', status: body.status || 'published' });
@@ -138,7 +186,8 @@ export async function listModeration(context, searchParams) {
   const labels = await userLabels(rows.map((row) => row.reporter_id));
   const posts = rows.filter((row) => row.target_type === 'post').length ? await restSelect('posts', { select: 'id,campus_id,body', id: inFilter(rows.filter((row) => row.target_type === 'post').map((row) => row.target_id)) }, { admin: true }) : { data: [] };
   const postMap = new Map((posts.data || []).map((row) => [row.id, row]));
-  const scoped = rows.filter((row) => context.role === 'super_admin' || canAccessCampus(context, postMap.get(row.target_id)?.campus_id));
+  const campusIds = await Promise.all(rows.map((row) => reportTargetCampusId(row)));
+  const scoped = rows.filter((row, index) => context.role === 'super_admin' || canAccessCampus(context, campusIds[index]));
   const records = scoped.map((row) => ({ ...row, reporter: labels.get(row.reporter_id)?.displayName || row.reporter_id, target: postMap.get(row.target_id)?.body?.slice(0, 110) || `${row.target_type} ${row.target_id}` }));
   return { records, total: result.count ?? records.length, page, limit, columns: ['Report', 'Reporter', 'Reason', 'Status'], rows: records.map((row) => [row.target, row.reporter, row.reason_code, row.status]) };
 }
@@ -146,6 +195,10 @@ export async function listModeration(context, searchParams) {
 export async function applyModeration(context, reportId, body) {
   requireRole(context, ['campus_admin', 'super_admin']);
   if (!body.action) throw new HttpError(400, 'Moderation action is required.', 'ACTION_REQUIRED');
+  const found = await restSelect('reports', { select: 'id,target_type,target_id', id: `eq.${reportId}`, limit: 1 }, { admin: true });
+  const report = found.data?.[0];
+  if (!report) throw new HttpError(404, 'Report not found.', 'REPORT_NOT_FOUND');
+  requireCampus(context, await reportTargetCampusId(report));
   const result = await restRpc('admin_apply_moderation_action_as', { p_actor_id: context.user.id, p_report_id: reportId, p_action: body.action, p_reason: body.reason || null }, { admin: true });
   return result.data;
 }
@@ -172,6 +225,7 @@ export async function listEvents(context, searchParams) {
 export async function createEvent(context, body) {
   requireRole(context, ['event_manager', 'campus_admin', 'super_admin']);
   const campusId = context.role === 'super_admin' ? body.campusId : context.campusId;
+  await requireActiveCampus(campusId);
   requireCampus(context, campusId);
   if (!body.title || !body.startsAt || !body.endsAt || !body.description) throw new HttpError(400, 'Title, description, start time, and end time are required.', 'EVENT_FIELDS_REQUIRED');
   let organizer = (await restSelect('event_organizers', { select: 'id', campus_id: `eq.${campusId}`, status: 'eq.active', limit: 1 }, { admin: true })).data?.[0];
@@ -228,21 +282,31 @@ export async function inviteStaff(context, body) {
   if (!body.email || !body.email.includes('@')) throw new HttpError(400, 'A valid work email is required.', 'INVALID_EMAIL');
   const role = body.role || 'event_manager';
   if (!['campus_admin', 'event_manager', 'super_admin'].includes(role)) throw new HttpError(400, 'Invalid admin role.', 'INVALID_ROLE');
+  requireRoleGrant(context, role);
   const campusId = role === 'super_admin' ? null : context.role === 'super_admin' ? body.campusId : context.campusId;
-  if (role !== 'super_admin') requireCampus(context, campusId);
-  let authUser;
-  const existing = await restSelect('users', { select: 'id,email', email: `eq.${body.email.trim().toLowerCase()}`, limit: 1 }, { admin: true });
-  if (existing.data?.[0]) authUser = existing.data[0];
-  else {
-    const invite = await supabaseRequest('auth', 'invite', { method: 'POST', admin: true, body: { email: body.email.trim().toLowerCase() } });
-    authUser = invite.data?.user || invite.data;
+  if (role !== 'super_admin') {
+    await requireActiveCampus(campusId);
+    requireCampus(context, campusId);
   }
-  if (authUser?.id) {
-    const assignment = await insert('admin_assignments', { user_id: authUser.id, role, campus_id: campusId, organizer_id: null, status: 'active', granted_by: context.user.id });
-    await audit(context, 'staff.assigned', 'user', authUser.id, { role, campus_id: campusId });
+  const email = body.email.trim().toLowerCase();
+  let existingUser;
+  const existing = await restSelect('users', { select: 'id,email', email: `eq.${email}`, limit: 1 }, { admin: true });
+  if (existing.data?.[0]) existingUser = existing.data[0];
+  if (existingUser?.id) {
+    const active = await restSelect('admin_assignments', { select: '*', user_id: `eq.${existingUser.id}`, role: `eq.${role}`, campus_id: campusId ? `eq.${campusId}` : 'is.null', status: 'eq.active', limit: 1 }, { admin: true });
+    if (active.data?.[0]) return active.data[0];
+    const assignment = await insert('admin_assignments', { user_id: existingUser.id, role, campus_id: campusId, organizer_id: null, status: 'active', granted_by: context.user.id });
+    await audit(context, 'staff.assigned', 'user', existingUser.id, { role, campus_id: campusId });
     return assignment;
   }
-  const invitation = await insert('admin_invitations', { email: body.email.trim().toLowerCase(), role, campus_id: campusId, status: 'pending', created_by: context.user.id });
+  const pending = await restSelect('admin_invitations', { select: '*', email: `eq.${email}`, role: `eq.${role}`, campus_id: campusId ? `eq.${campusId}` : 'is.null', status: 'eq.pending', limit: 1 }, { admin: true });
+  if (pending.data?.[0]) return pending.data[0];
+  try {
+    await supabaseRequest('auth', 'invite', { method: 'POST', admin: true, body: { email } });
+  } catch (error) {
+    if (!(error instanceof HttpError) || ![400, 422].includes(error.status)) throw error;
+  }
+  const invitation = await insert('admin_invitations', { email, role, campus_id: campusId, status: 'pending', created_by: context.user.id });
   await audit(context, 'staff.invited', 'admin_invitation', invitation.id, { role, campus_id: campusId });
   return invitation;
 }
@@ -252,6 +316,8 @@ export async function revokeStaff(context, id) {
   const found = await restSelect('admin_assignments', { select: 'id,user_id,campus_id,role', id: `eq.${id}`, limit: 1 }, { admin: true });
   const assignment = found.data?.[0];
   if (!assignment) throw new HttpError(404, 'Admin assignment not found.', 'ASSIGNMENT_NOT_FOUND');
+  requireRoleGrant(context, assignment.role);
+  if (assignment.user_id === context.user.id) throw new HttpError(400, 'You cannot revoke your own active assignment.', 'SELF_REVOKE_DENIED');
   requireCampus(context, assignment.campus_id);
   const row = await update('admin_assignments', { id: `eq.${id}` }, { status: 'revoked', revoked_at: new Date().toISOString() });
   await audit(context, 'staff.revoked', 'user', assignment.user_id, { role: assignment.role, campus_id: assignment.campus_id });
@@ -313,12 +379,14 @@ export async function listAudit(context, searchParams) {
 }
 
 export async function getSettings(context) {
+  requireRole(context, ['campus_admin', 'super_admin']);
   const scopeKey = context.role === 'super_admin' ? 'global' : `campus:${context.campusId}`;
   const result = await restSelect('admin_workspace_settings', { select: 'scope_key,display_name,support_email,admin_notice,digest_enabled,moderation_alerts,updated_at', scope_key: `eq.${scopeKey}`, limit: 1 }, { admin: true });
   return result.data?.[0] || { scope_key: scopeKey, display_name: context.campus?.name || 'CampusSphere', support_email: context.user.email, admin_notice: '', digest_enabled: true, moderation_alerts: true };
 }
 
 export async function saveSettings(context, body) {
+  requireRole(context, ['campus_admin', 'super_admin']);
   const scopeKey = context.role === 'super_admin' ? 'global' : `campus:${context.campusId}`;
   const row = await upsert('admin_workspace_settings', 'scope_key', { scope_key: scopeKey, display_name: body.displayName || '', support_email: body.supportEmail || null, admin_notice: body.adminNotice || '', digest_enabled: Boolean(body.digestEnabled), moderation_alerts: Boolean(body.moderationAlerts), updated_by: context.user.id });
   await audit(context, 'settings.updated', 'workspace_settings', null, { scope_key: scopeKey });

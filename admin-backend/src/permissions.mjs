@@ -8,6 +8,12 @@ export function requireRole(context, roles) {
   if (!roles.includes(context.role)) throw new HttpError(403, 'Your admin role cannot perform this action.', 'PERMISSION_DENIED');
 }
 
+export function requireRoleGrant(context, role) {
+  if (context.role === 'super_admin') return;
+  if (context.role === 'campus_admin' && role === 'event_manager') return;
+  throw new HttpError(403, 'Your admin role cannot grant or revoke this assignment.', 'ROLE_GRANT_DENIED');
+}
+
 export function requireCampus(context, campusId) {
   if (!canAccessCampus(context, campusId)) throw new HttpError(403, 'This action is outside your campus scope.', 'SCOPE_DENIED');
 }
