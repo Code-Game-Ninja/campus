@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { registerUnauthorizedHandler, setAccessToken } from './api';
+import { claimDeviceForSession } from './device-security';
 import { SupabaseHttpError, supabaseRequest } from './supabase-http';
 import type { OnboardingRoute } from '@/store/useAppStore';
 
@@ -62,6 +63,7 @@ export async function verifyOtp(email: string, token: string): Promise<AuthSessi
   }));
   if (!session.access_token || !session.refresh_token) throw new Error('Supabase did not return a valid session.');
   await save(session);
+  try { await claimDeviceForSession(session); } catch (error) { await save(null); throw error; }
   return session;
 }
 
@@ -72,6 +74,7 @@ async function refreshSession(session: AuthSession): Promise<AuthSession | null>
       body: { refresh_token: session.refresh_token },
     }));
     await save(refreshed);
+    try { await claimDeviceForSession(refreshed); } catch (error) { await save(null); throw error; }
     return refreshed;
   } catch (error) {
     if (error instanceof SupabaseHttpError && [400, 401, 403].includes(error.status)) {
@@ -91,6 +94,7 @@ export async function restoreSession(forceRefresh = false): Promise<AuthSession 
   const expiresSoon = !existing.expires_at || existing.expires_at <= Math.floor(Date.now() / 1000) + 60;
   if (forceRefresh || expiresSoon) return refreshSession(existing);
   setAccessToken(existing.access_token);
+  try { await claimDeviceForSession(existing); } catch (error) { await save(null); throw error; }
   return existing;
 }
 

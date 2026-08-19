@@ -93,6 +93,17 @@ export async function authenticate(token) {
   };
 }
 
+export async function authenticateUser(token) {
+  if (!token) throw new HttpError(401, 'Authentication is required.', 'AUTH_REQUIRED');
+  const identity = await supabaseRequest('auth', 'user', { token });
+  const authUser = identity.data;
+  if (!authUser?.id) throw new HttpError(401, 'The access token is invalid.', 'AUTH_INVALID');
+  const users = await restSelect('users', { select: 'id,email,campus_id,status', id: `eq.${authUser.id}`, limit: 1 }, { admin: true });
+  const user = users.data?.[0];
+  if (!user || !['pending', 'active'].includes(user.status)) throw new HttpError(403, 'This account is not active.', 'ACCOUNT_INACTIVE');
+  return { token, authUser, user };
+}
+
 export function bearer(headers) {
   const value = headers.authorization || headers.Authorization || '';
   return value.startsWith('Bearer ') ? value.slice(7) : null;

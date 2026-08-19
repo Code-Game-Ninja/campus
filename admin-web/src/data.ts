@@ -2,7 +2,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   Activity, BellRing, Building2, CalendarDays, ClipboardCheck, FileText,
   Gauge, HeartPulse, LayoutDashboard, Megaphone, Settings, ShieldCheck,
-  UserCog, UsersRound,
+  UserCog, UsersRound, UserRoundSearch,
 } from 'lucide-react';
 
 export type Role = 'campus_admin' | 'event_manager' | 'super_admin';
@@ -21,7 +21,8 @@ export const roleMeta: Record<Role, WorkspaceMeta> = {
 export const navByRole: Record<Role, NavItem[]> = {
   campus_admin: [
     { label: 'Overview', icon: LayoutDashboard }, { label: 'Events', icon: CalendarDays },
-    { label: 'Posts', icon: FileText, count: 8 }, { label: 'Moderation', icon: ShieldCheck, count: 5 },
+  { label: 'Posts', icon: FileText, count: 8 }, { label: 'Moderation', icon: ShieldCheck, count: 5 },
+    { label: 'Users', icon: UserRoundSearch },
     { label: 'Event Managers', icon: UserCog }, { label: 'Notifications', icon: BellRing },
     { label: 'Campus Settings', icon: Settings },
   ],
@@ -31,7 +32,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: 'Notifications', icon: Megaphone },
   ],
   super_admin: [
-    { label: 'Overview', icon: LayoutDashboard }, { label: 'Campuses', icon: Building2 },
+    { label: 'Overview', icon: LayoutDashboard }, { label: 'Campuses', icon: Building2 }, { label: 'Users', icon: UserRoundSearch },
     { label: 'Staff & Roles', icon: UsersRound }, { label: 'All Content', icon: FileText, count: 18 },
     { label: 'Moderation', icon: ShieldCheck, count: 12 }, { label: 'Audit Log', icon: Activity },
     { label: 'Platform Health', icon: HeartPulse }, { label: 'Platform Settings', icon: Gauge },

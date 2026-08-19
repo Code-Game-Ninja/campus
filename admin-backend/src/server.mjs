@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { config, assertConfig } from './config.mjs';
-import { authenticate, bearer, refreshSession, sendOtp, signOut, verifyOtp } from './auth.mjs';
+import { authenticate, authenticateUser, bearer, refreshSession, sendOtp, signOut, verifyOtp } from './auth.mjs';
 import { asHttpError, HttpError } from './errors.mjs';
 import { requireRole } from './permissions.mjs';
 import * as repo from './repository.mjs';
@@ -32,6 +32,11 @@ async function contextOf(request) {
   return authenticate(bearer(request.headers));
 }
 
+function clientIp(request) {
+  const forwarded = request.headers['x-forwarded-for'] || request.headers['cf-connecting-ip'];
+  return String(forwarded || request.socket.remoteAddress || '').split(',')[0].trim() || null;
+}
+
 function idFrom(pathname, pattern) {
   const match = pathname.match(pattern);
   return match?.[1] || null;
@@ -46,6 +51,11 @@ async function route(request, pathname, searchParams) {
   if (pathname === '/v1/auth/verify' && method === 'POST') { const body = await bodyOf(request); return { status: 200, payload: await verifyOtp(body.email, body.code || body.token) }; }
   if (pathname === '/v1/auth/refresh' && method === 'POST') return { status: 200, payload: await refreshSession((await bodyOf(request)).refreshToken) };
   if (pathname === '/v1/auth/logout' && method === 'POST') { await signOut(bearer(request.headers)); return { status: 204, payload: null }; }
+
+  if (pathname === '/v1/mobile/device/claim' && method === 'POST') {
+    const identity = await authenticateUser(bearer(request.headers));
+    return { status: 200, payload: await repo.claimMobileDevice(identity, await bodyOf(request), clientIp(request)) };
+  }
 
   const context = await contextOf(request);
   if (pathname === '/v1/me' && method === 'GET') return { status: 200, payload: context };
@@ -75,6 +85,12 @@ async function route(request, pathname, searchParams) {
   const campusId = idFrom(pathname, /^\/v1\/campuses\/([^/]+)$/);
   if (campusId && method === 'PATCH') return { status: 200, payload: await repo.updateCampus(context, campusId, await bodyOf(request)) };
   if (campusId && method === 'DELETE') return { status: 200, payload: await repo.deleteCampus(context, campusId) };
+  if (pathname === '/v1/users' && method === 'GET') return { status: 200, payload: await repo.listUsers(context, searchParams) };
+  const userId = idFrom(pathname, /^\/v1\/users\/([^/]+)$/);
+  if (userId && method === 'GET') return { status: 200, payload: await repo.getUserSecurity(context, userId) };
+  if (userId && method === 'PATCH') return { status: 200, payload: await repo.enforceUser(context, userId, await bodyOf(request)) };
+  const userSessionsId = idFrom(pathname, /^\/v1\/users\/([^/]+)\/sessions$/);
+  if (userSessionsId && method === 'POST') return { status: 200, payload: await repo.revokeUserSessions(context, userSessionsId) };
   if (pathname === '/v1/notifications' && method === 'GET') return { status: 200, payload: await repo.listNotifications(context, searchParams) };
   if (pathname === '/v1/notifications/read-all' && method === 'POST') return { status: 200, payload: await repo.markAllNotifications(context) };
   const notificationId = idFrom(pathname, /^\/v1\/notifications\/([^/]+)\/read$/);

@@ -72,6 +72,29 @@ async function visibleEventIds(context) {
   return owners.data?.map((row) => row.event_id) || [];
 }
 
+function maskIp(value) {
+  if (!value) return null;
+  const text = String(value);
+  if (text.includes(':')) return `${text.split(':').slice(0, 3).join(':')}:*`;
+  const parts = text.split('.');
+  return parts.length === 4 ? `${parts[0]}.***.***.${parts[3]}` : 'masked';
+}
+
+function maskFingerprint(value) {
+  if (!value) return null;
+  const text = String(value);
+  return text.length <= 8 ? 'masked' : `${text.slice(0, 4)}…${text.slice(-4)}`;
+}
+
+async function scopedUser(context, id) {
+  requireRole(context, ['campus_admin', 'super_admin']);
+  const result = await restSelect('users', { select: 'id,email,phone_e164,phone_verified_at,campus_id,status,created_at,updated_at', id: `eq.${id}`, limit: 1 }, { admin: true });
+  const user = result.data?.[0];
+  if (!user) throw new HttpError(404, 'User not found.', 'USER_NOT_FOUND');
+  requireCampus(context, user.campus_id);
+  return user;
+}
+
 async function reportTargetCampusId(report) {
   const directTables = {
     post: 'posts',
@@ -325,6 +348,127 @@ export async function listStaff(context, searchParams) {
   const campusMap = new Map((campuses.data || []).map((row) => [row.id, row.name]));
   const records = rows.map((row) => ({ ...row, person: labels.get(row.user_id)?.displayName || row.user_id, email: labels.get(row.user_id)?.email, scope: campusMap.get(row.campus_id) || 'Global platform' }));
   return { records, total: result.count ?? records.length, columns: ['Person', 'Role', 'Scope', 'Status'], rows: records.map((row) => [row.person, row.role, row.scope, row.status]) };
+}
+
+export async function listUsers(context, searchParams) {
+  requireRole(context, ['campus_admin', 'super_admin']);
+  const { page, limit, offset } = pageParams(searchParams);
+  const filter = context.role === 'super_admin' ? {} : { campus_id: `eq.${context.campusId}` };
+  const query = (searchParams.get('q') || '').trim().replace(/[,*()]/g, ' ');
+  if (query) filter.email = `ilike.*${query}*`;
+  const result = await restSelect('users', {
+    select: 'id,email,phone_e164,phone_verified_at,campus_id,status,created_at,updated_at',
+    ...filter,
+    ...statusFilter(searchParams),
+    order: 'created_at.desc',
+    limit,
+    offset,
+  }, { admin: true, count: true });
+  const rows = result.data || [];
+  const ids = rows.map((row) => row.id);
+  const [labels, campuses, devices, reports] = await Promise.all([
+    userLabels(ids),
+    rows.length ? restSelect('campuses', { select: 'id,name', id: inFilter(rows.map((row) => row.campus_id).filter(Boolean)) }, { admin: true }) : { data: [] },
+    ids.length ? restSelect('user_device_identities', { select: 'user_id,id,disabled_at,blocked_at,last_seen_at', user_id: inFilter(ids), limit: 1000 }, { admin: true }) : { data: [] },
+    ids.length ? restSelect('reports', { select: 'target_id,status', target_type: 'eq.user', target_id: inFilter(ids), limit: 1000 }, { admin: true }) : { data: [] },
+  ]);
+  const campusMap = new Map((campuses.data || []).map((row) => [row.id, row.name]));
+  const deviceMap = new Map();
+  for (const device of devices.data || []) {
+    if (!deviceMap.has(device.user_id)) deviceMap.set(device.user_id, []);
+    deviceMap.get(device.user_id).push(device);
+  }
+  const reportMap = new Map();
+  for (const report of reports.data || []) reportMap.set(report.target_id, (reportMap.get(report.target_id) || 0) + 1);
+  const records = rows.map((row) => {
+    const userDevices = deviceMap.get(row.id) || [];
+    const activeDevices = userDevices.filter((device) => !device.disabled_at && !device.blocked_at).length;
+    const label = labels.get(row.id);
+    return {
+      ...row,
+      person: label?.displayName || row.email,
+      campus: campusMap.get(row.campus_id) || 'Unassigned',
+      phone: row.phone_verified_at ? row.phone_e164 : null,
+      reportCount: reportMap.get(row.id) || 0,
+      deviceCount: activeDevices,
+      lastSeenAt: userDevices.sort((a, b) => String(b.last_seen_at || '').localeCompare(String(a.last_seen_at || '')))[0]?.last_seen_at || null,
+    };
+  });
+  return {
+    records,
+    total: result.count ?? records.length,
+    page,
+    limit,
+    columns: ['User', 'Email', 'Phone', 'Campus', 'Status', 'Reports', 'Devices', 'Last seen'],
+    rows: records.map((row) => [row.person, row.email, row.phone || 'Not verified', row.campus, row.status, String(row.reportCount), String(row.deviceCount), row.lastSeenAt ? new Date(row.lastSeenAt).toLocaleString('en-IN') : 'Never']),
+  };
+}
+
+export async function getUserSecurity(context, id) {
+  const user = await scopedUser(context, id);
+  const [profiles, campuses, devices, enforcements, loginEvents, reports, filedReports] = await Promise.all([
+    restSelect('profiles', { select: 'user_id,display_name,username,avatar_key', user_id: `eq.${id}`, limit: 1 }, { admin: true }),
+    user.campus_id ? restSelect('campuses', { select: 'id,name,slug', id: `eq.${user.campus_id}`, limit: 1 }, { admin: true }) : { data: [] },
+    restSelect('user_device_identities', { select: 'id,user_id,platform,device_fingerprint_hash,device_label,model,app_version,integrity_verdict,last_ip,first_seen_at,last_seen_at,disabled_at,blocked_at', user_id: `eq.${id}`, order: 'last_seen_at.desc', limit: 100 }, { admin: true }),
+    restSelect('account_enforcements', { select: 'id,enforcement,reason,imposed_by,imposed_at,expires_at,revoked_at', user_id: `eq.${id}`, order: 'imposed_at.desc', limit: 100 }, { admin: true }),
+    restSelect('user_login_events', { select: 'id,device_id,email,ip_address,outcome,failure_code,metadata,created_at', user_id: `eq.${id}`, order: 'created_at.desc', limit: 100 }, { admin: true }),
+    restSelect('reports', { select: 'id,reporter_id,reason_code,details,status,resolution,created_at', target_type: 'eq.user', target_id: `eq.${id}`, order: 'created_at.desc', limit: 100 }, { admin: true }),
+    restSelect('reports', { select: 'id,target_type,target_id,reason_code,details,status,resolution,created_at', reporter_id: `eq.${id}`, order: 'created_at.desc', limit: 100 }, { admin: true }),
+  ]);
+  const superAdmin = context.role === 'super_admin';
+  const mapDevice = (device) => ({ ...device, deviceFingerprint: superAdmin ? device.device_fingerprint_hash : maskFingerprint(device.device_fingerprint_hash), lastIp: superAdmin ? device.last_ip : maskIp(device.last_ip) });
+  const mapEvent = (event) => ({ ...event, ipAddress: superAdmin ? event.ip_address : maskIp(event.ip_address) });
+  return {
+    user: { ...user, phone: user.phone_verified_at ? user.phone_e164 : null, phoneVerified: Boolean(user.phone_verified_at), displayName: profiles.data?.[0]?.display_name || user.email, username: profiles.data?.[0]?.username || null, campus: campuses.data?.[0] || null },
+    devices: (devices.data || []).map(mapDevice),
+    enforcements: enforcements.data || [],
+    loginEvents: (loginEvents.data || []).map(mapEvent),
+    reports: reports.data || [],
+    filedReports: filedReports.data || [],
+  };
+}
+
+export async function enforceUser(context, id, body) {
+  const user = await scopedUser(context, id);
+  const action = String(body.action || '').trim();
+  const allowed = ['suspend', 'ban', 'restore', 'force_recreate', 'delete', 'block_device', 'unbind_device'];
+  if (!allowed.includes(action)) throw new HttpError(400, 'Invalid account action.', 'INVALID_ACCOUNT_ACTION');
+  if (['force_recreate', 'delete', 'unbind_device'].includes(action) && context.role !== 'super_admin') throw new HttpError(403, 'Only a super admin can perform this action.', 'SUPER_ADMIN_REQUIRED');
+  if (!body.reason || !String(body.reason).trim()) throw new HttpError(400, 'A reason is required.', 'REASON_REQUIRED');
+  const result = await restRpc('admin_apply_account_enforcement_as', {
+    p_actor_id: context.user.id,
+    p_user_id: user.id,
+    p_action: action,
+    p_reason: String(body.reason).trim(),
+    p_expires_at: body.expiresAt || null,
+    p_device_id: body.deviceId || null,
+  }, { admin: true });
+  return result.data;
+}
+
+export async function revokeUserSessions(context, id) {
+  const user = await scopedUser(context, id);
+  await update('user_device_identities', { user_id: `eq.${id}`, disabled_at: 'is.null' }, { disabled_at: new Date().toISOString() });
+  await update('user_devices', { user_id: `eq.${id}`, disabled_at: 'is.null' }, { disabled_at: new Date().toISOString() });
+  await audit(context, 'account.sessions_revoked', 'user', id, { campus_id: user.campus_id });
+  return { userId: id, revoked: true, message: 'All registered devices were disabled. The app must claim a device again.' };
+}
+
+export async function claimMobileDevice(identity, body, ipAddress) {
+  const platform = String(body.platform || 'android');
+  if (!body.deviceFingerprint) throw new HttpError(400, 'A device fingerprint is required.', 'DEVICE_FINGERPRINT_REQUIRED');
+  const result = await restRpc('claim_device_mobile', {
+    p_platform: platform,
+    p_device_fingerprint_hash: String(body.deviceFingerprint),
+    p_device_public_key: body.devicePublicKey || null,
+    p_installation_id_hash: body.installationId || null,
+    p_device_label: body.deviceLabel || null,
+    p_integrity_verdict: body.integrityVerdict || 'not_checked',
+    p_app_version: body.appVersion || null,
+    p_model: body.model || null,
+    p_ip_address: ipAddress,
+  }, { token: identity.token });
+  return { deviceId: result.data?.id, status: 'claimed', userId: identity.user.id };
 }
 
 export async function inviteStaff(context, body) {
