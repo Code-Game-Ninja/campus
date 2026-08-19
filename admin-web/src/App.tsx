@@ -20,6 +20,7 @@ import { navByRole, roleMeta, type Role, type WorkspaceMeta } from './data';
 import { apiDelete, apiGet, apiPatch, apiPost, hasSession, signOut, tableEndpoint, type AdminContext, type DashboardData, type NotificationRecord, type TableData } from './lib/api';
 
 type ModalKind = 'event' | 'manager' | 'campus' | 'post' | null;
+type RowActionRequest = { section: string; record: Record<string, unknown> } | null;
 type HealthData = { status: string; latencyMs: number; checkedAt: string; services: Array<{ name: string; status: string }> };
 type CampusOption = { id: string; name: string; status: string };
 
@@ -54,6 +55,7 @@ export function App() {
   const [toast, setToast] = useState('');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [modal, setModal] = useState<ModalKind>(null);
+  const [rowActionRequest, setRowActionRequest] = useState<RowActionRequest>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [table, setTable] = useState<TableData | null>(null);
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
@@ -155,26 +157,29 @@ export function App() {
     setModal(null); notify(`${kind[0].toUpperCase()}${kind.slice(1)} workflow completed.`); await Promise.all([refreshSection(section), loadDashboard()]);
   }
 
-  async function rowAction(index: number) {
+  function rowAction(index: number) {
     const record = table?.records[index] as Record<string, string> | undefined;
     if (!record?.id) return;
+    if (!['Posts', 'All Content', 'Moderation', 'Events', 'Venues & Media', 'Event Managers', 'Staff & Roles', 'Campuses'].includes(section)) { notify('This record is read-only.'); return; }
+    setRowActionRequest({ section, record });
+  }
+
+  async function submitRowAction(values: Record<string, string>) {
+    if (!rowActionRequest) return;
+    const { section: targetSection, record } = rowActionRequest;
     try {
-      if (section === 'Posts' || section === 'All Content') {
-        const status = window.prompt('Set post status: published, hidden, removed', record.status || 'published');
-        if (status) await apiPatch(`/v1/posts/${record.id}/status`, { status });
-      } else if (section === 'Moderation') {
-        const action = window.prompt('Moderation action: dismiss, hide, remove, warn, escalate, restore', 'dismiss');
-        if (action) await apiPatch(`/v1/moderation/${record.id}`, { action, reason: window.prompt('Reason for the audit log') || action });
-      } else if (section === 'Events' || section === 'Venues & Media') {
-        const status = window.prompt('Set event status: draft, published, cancelled, completed', record.status || 'draft');
-        if (status) await apiPatch(`/v1/events/${record.id}/status`, { status });
-      } else if (section === 'Event Managers' || section === 'Staff & Roles') {
-        if (window.confirm(`Revoke the ${record.role} assignment for ${record.person}?`)) await apiDelete(`/v1/staff/${record.id}`);
-      } else if (section === 'Campuses') {
-        const status = record.status === 'active' ? 'inactive' : 'active';
-        if (window.confirm(`Set ${record.name} to ${status}?`)) await apiPatch(`/v1/campuses/${record.id}/status`, { status });
-      } else { notify('This record is read-only.'); return; }
-      notify('Change saved and recorded in the audit log.'); await Promise.all([refreshSection(section), loadDashboard()]);
+      if (targetSection === 'Posts' || targetSection === 'All Content') await apiPatch(`/v1/posts/${record.id}/status`, { status: values.status });
+      else if (targetSection === 'Moderation') await apiPatch(`/v1/moderation/${record.id}`, { action: values.action, reason: values.reason || values.action });
+      else if (targetSection === 'Events' || targetSection === 'Venues & Media') await apiPatch(`/v1/events/${record.id}/status`, { status: values.status });
+      else if (targetSection === 'Event Managers' || targetSection === 'Staff & Roles') await apiDelete(`/v1/staff/${record.id}`);
+      else if (targetSection === 'Campuses') {
+        if (values.action === 'delete') await apiDelete(`/v1/campuses/${record.id}`);
+        else if (values.action === 'edit') await apiPatch(`/v1/campuses/${record.id}`, { name: values.name, slug: values.slug, countryCode: values.countryCode, timezone: values.timezone });
+        else await apiPatch(`/v1/campuses/${record.id}/status`, { status: values.status });
+      }
+      setRowActionRequest(null);
+      notify('Change saved and recorded in the audit log.');
+      await Promise.all([refreshSection(targetSection), loadDashboard(), targetSection === 'Campuses' ? loadCampusOptions() : Promise.resolve()]);
     } catch (error) { notify(error instanceof Error ? error.message : 'The action could not be completed.'); }
   }
 
@@ -221,6 +226,7 @@ export function App() {
     {notificationsOpen && <Notifications items={notifications} onClose={() => setNotificationsOpen(false)} onRead={async (id) => { await readNotification(id); setNotificationsOpen(false); }} onReadAll={readAllNotifications} onViewAll={() => { setNotificationsOpen(false); navigate('Notifications'); }} />}
     {toast && <Toast message={toast} onClose={() => setToast('')} />}
     {modal && <WorkflowModal kind={modal} role={role} campuses={campusOptions} onClose={() => setModal(null)} onSubmit={submitWorkflow} />}
+    {rowActionRequest && <RowActionModal request={rowActionRequest} onClose={() => setRowActionRequest(null)} onSubmit={submitRowAction} />}
   </div>;
 }
 
@@ -239,4 +245,22 @@ function WorkflowModal({ kind, role, campuses, onClose, onSubmit }: { kind: Excl
     {kind === 'campus' && <><label><span>Campus name</span><input name="name" required /></label><label><span>Slug</span><input name="slug" pattern="[a-z0-9-]+" required /></label><label><span>Country code</span><input name="countryCode" defaultValue="IN" maxLength={2} required /></label></>}
     {kind === 'post' && <><label className="field-wide"><span>Post content</span><textarea name="body" rows={5} required maxLength={2000} /></label>{role === 'super_admin' && <label><span>Campus</span><select name="campusId" required defaultValue=""><option value="" disabled>Select a campus</option>{campuses.map((campus) => <option value={campus.id} key={campus.id}>{campus.name}</option>)}</select></label>}<label><span>Visibility</span><select name="visibility" defaultValue="campus"><option value="campus">Campus</option><option value="global">Global</option></select></label></>}
   </div><div className="modal-actions"><button type="button" className="button button-secondary" onClick={onClose}><X size={14} />Cancel</button><button type="submit" className="button button-primary" disabled={busy}>{busy ? 'Saving...' : 'Save'}<ArrowUpRight size={14} /></button></div></form></Modal>;
+}
+
+function RowActionModal({ request, onClose, onSubmit }: { request: Exclude<RowActionRequest, null>; onClose: () => void; onSubmit: (values: Record<string, string>) => Promise<void> }) {
+  const { section: targetSection, record } = request;
+  const [busy, setBusy] = useState(false);
+  const [campusAction, setCampusAction] = useState('edit');
+  const title = targetSection === 'Moderation' ? 'Review report' : targetSection === 'Campuses' ? `Manage ${String(record.name || 'campus')}` : 'Record actions';
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setBusy(true); try { await onSubmit(Object.fromEntries(new FormData(event.currentTarget).entries()) as Record<string, string>); } finally { setBusy(false); } }
+  const isModeration = targetSection === 'Moderation';
+  const isCampus = targetSection === 'Campuses';
+  const isStaff = targetSection === 'Event Managers' || targetSection === 'Staff & Roles';
+  return <Modal title={title} description={isModeration ? `Reported ${String(record.target_type || 'content')}: ${String(record.target || '')}. ${String(record.details || 'No additional report details were provided.')}` : 'Choose an action to apply through the protected admin API.'} onClose={onClose}><form onSubmit={submit}><div className="form-fields">
+    {isModeration && <><label><span>Action</span><select name="action" defaultValue="dismiss"><option value="dismiss">Dismiss report</option><option value="hide">Hide content</option><option value="remove">Remove content</option><option value="warn">Warn user</option><option value="escalate">Escalate for review</option><option value="restore">Restore content</option></select></label><label className="field-wide"><span>Audit reason</span><textarea name="reason" rows={4} placeholder="Explain the moderation decision" /></label></>}
+    {(targetSection === 'Posts' || targetSection === 'All Content') && <label><span>Post status</span><select name="status" defaultValue={String(record.status || 'published')}><option value="published">Published</option><option value="hidden">Hidden</option><option value="removed">Removed</option><option value="deleted">Deleted</option></select></label>}
+    {(targetSection === 'Events' || targetSection === 'Venues & Media') && <label><span>Event status</span><select name="status" defaultValue={String(record.status || 'draft')}><option value="draft">Draft</option><option value="published">Published</option><option value="cancelled">Cancelled</option><option value="completed">Completed</option></select></label>}
+    {isStaff && <p className="modal-warning">This revokes the selected staff assignment and records the action in the audit log.</p>}
+    {isCampus && <><label><span>Campus action</span><select name="action" value={campusAction} onChange={(event) => setCampusAction(event.target.value)}><option value="edit">Edit details</option><option value="status">Change status</option><option value="delete">Delete campus</option></select></label>{campusAction === 'edit' && <><label><span>Name</span><input name="name" defaultValue={String(record.name || '')} required /></label><label><span>Slug</span><input name="slug" defaultValue={String(record.slug || '')} pattern="[a-z0-9-]+" required /></label><label><span>Country code</span><input name="countryCode" defaultValue={String(record.country_code || 'IN')} pattern="[A-Z]{2}" maxLength={2} required /></label><label><span>Timezone</span><input name="timezone" defaultValue={String(record.timezone || 'Asia/Kolkata')} required /></label></>}{campusAction === 'status' && <label><span>Status</span><select name="status" defaultValue={String(record.status || 'active')}><option value="active">Active</option><option value="inactive">Inactive</option></select></label>}{campusAction === 'delete' && <p className="modal-warning">Only inactive campuses can be deleted. Records that reference this campus will block deletion.</p>}</>}
+  </div><div className="modal-actions"><button type="button" className="button button-secondary" onClick={onClose}><X size={14} />Cancel</button><button type="submit" className={`button ${campusAction === 'delete' ? 'button-danger' : 'button-primary'}`} disabled={busy}>{busy ? 'Saving...' : isStaff ? 'Revoke assignment' : campusAction === 'delete' ? 'Delete campus' : 'Apply change'}<ArrowUpRight size={14} /></button></div></form></Modal>;
 }

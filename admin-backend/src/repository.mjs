@@ -37,7 +37,8 @@ async function update(table, filter, body) {
 }
 
 async function remove(table, filter) {
-  return supabaseRequest('rest', `${table}?${new URLSearchParams(filter)}`, { method: 'DELETE', admin: true, headers: { Prefer: 'return=representation' } });
+  const result = await supabaseRequest('rest', `${table}?${new URLSearchParams(filter)}`, { method: 'DELETE', admin: true, headers: { Prefer: 'return=representation' } });
+  return result.data?.[0] || result.data;
 }
 
 async function userLabels(ids) {
@@ -190,15 +191,42 @@ export async function updatePostStatus(context, id, status) {
 export async function listModeration(context, searchParams) {
   requireRole(context, ['campus_admin', 'super_admin']);
   const { page, limit, offset } = pageParams(searchParams);
-  const result = await restSelect('reports', { select: 'id,reporter_id,target_type,target_id,reason_code,details,status,resolution,created_at', ...statusFilter(searchParams, 'in.(open,reviewing)'), order: 'created_at.asc', limit, offset }, { admin: true, count: true });
+  const requestedStatus = searchParams.get('status');
+  const moderationStatus = !requestedStatus || requestedStatus === 'all' ? { status: 'in.(open,reviewing)' } : statusFilter(searchParams);
+  const result = await restSelect('reports', { select: 'id,reporter_id,target_type,target_id,reason_code,details,status,resolution,created_at', ...moderationStatus, order: 'created_at.asc', limit, offset }, { admin: true, count: true });
   const rows = result.data || [];
   const labels = await userLabels(rows.map((row) => row.reporter_id));
-  const posts = rows.filter((row) => row.target_type === 'post').length ? await restSelect('posts', { select: 'id,campus_id,body', id: inFilter(rows.filter((row) => row.target_type === 'post').map((row) => row.target_id)) }, { admin: true }) : { data: [] };
-  const postMap = new Map((posts.data || []).map((row) => [row.id, row]));
+  const idsByType = (type) => rows.filter((row) => row.target_type === type).map((row) => row.target_id);
+  const [posts, comments, messages, users, events, teamRequests, teamApplications] = await Promise.all([
+    idsByType('post').length ? restSelect('posts', { select: 'id,campus_id,body,status', id: inFilter(idsByType('post')) }, { admin: true }) : { data: [] },
+    idsByType('comment').length ? restSelect('comments', { select: 'id,post_id,author_id,body,status', id: inFilter(idsByType('comment')) }, { admin: true }) : { data: [] },
+    idsByType('message').length ? restSelect('messages', { select: 'id,sender_id,conversation_id,message_type,text,status,created_at', id: inFilter(idsByType('message')) }, { admin: true }) : { data: [] },
+    idsByType('user').length ? restSelect('users', { select: 'id,email,campus_id,status', id: inFilter(idsByType('user')) }, { admin: true }) : { data: [] },
+    idsByType('event').length ? restSelect('events', { select: 'id,campus_id,title,status', id: inFilter(idsByType('event')) }, { admin: true }) : { data: [] },
+    idsByType('team_request').length ? restSelect('team_requests', { select: 'id,campus_id,title,status', id: inFilter(idsByType('team_request')) }, { admin: true }) : { data: [] },
+    idsByType('team_application').length ? restSelect('team_applications', { select: 'id,team_request_id,applicant_id,message,status', id: inFilter(idsByType('team_application')) }, { admin: true }) : { data: [] },
+  ]);
+  const targetMaps = new Map([
+    ['post', new Map((posts.data || []).map((row) => [row.id, row]))],
+    ['comment', new Map((comments.data || []).map((row) => [row.id, row]))],
+    ['message', new Map((messages.data || []).map((row) => [row.id, row]))],
+    ['user', new Map((users.data || []).map((row) => [row.id, row]))],
+    ['event', new Map((events.data || []).map((row) => [row.id, row]))],
+    ['team_request', new Map((teamRequests.data || []).map((row) => [row.id, row]))],
+    ['team_application', new Map((teamApplications.data || []).map((row) => [row.id, row]))],
+  ]);
+  const commentPostIds = (comments.data || []).map((row) => row.post_id).filter(Boolean);
+  const commentPosts = commentPostIds.length ? await restSelect('posts', { select: 'id,campus_id,body', id: inFilter(commentPostIds) }, { admin: true }) : { data: [] };
+  const commentPostMap = new Map((commentPosts.data || []).map((row) => [row.id, row]));
   const campusIds = await Promise.all(rows.map((row) => reportTargetCampusId(row)));
   const scoped = rows.filter((row, index) => context.role === 'super_admin' || canAccessCampus(context, campusIds[index]));
-  const records = scoped.map((row) => ({ ...row, reporter: labels.get(row.reporter_id)?.displayName || row.reporter_id, target: postMap.get(row.target_id)?.body?.slice(0, 110) || `${row.target_type} ${row.target_id}` }));
-  return { records, total: result.count ?? records.length, page, limit, columns: ['Report', 'Reporter', 'Reason', 'Status'], rows: records.map((row) => [row.target, row.reporter, row.reason_code, row.status]) };
+  const records = scoped.map((row) => {
+    const target = targetMaps.get(row.target_type)?.get(row.target_id);
+    const targetText = row.target_type === 'message' ? target?.text : row.target_type === 'comment' ? target?.body : row.target_type === 'post' ? target?.body : row.target_type === 'event' || row.target_type === 'team_request' ? target?.title : row.target_type === 'team_application' ? target?.message : row.target_type === 'user' ? target?.email : null;
+    const targetStatus = target?.status || null;
+    return { ...row, reporter: labels.get(row.reporter_id)?.displayName || row.reporter_id, target: `${row.target_type}: ${String(targetText || row.target_id)}`.slice(0, 180), targetStatus, targetRecord: target || null, targetCampusId: campusIds[rows.indexOf(row)] || null, parentPost: row.target_type === 'comment' ? commentPostMap.get(target?.post_id) || null : null };
+  });
+  return { records, total: result.count ?? records.length, page, limit, columns: ['Report', 'Reporter', 'Reason', 'Details', 'Status'], rows: records.map((row) => [row.target, row.reporter, row.reason_code, row.details || 'No details provided', row.status]) };
 }
 
 export async function applyModeration(context, reportId, body) {
@@ -353,12 +381,39 @@ export async function createCampus(context, body) {
   return row;
 }
 
-export async function updateCampus(context, id, status) {
+export async function updateCampus(context, id, body) {
   requireRole(context, ['super_admin']);
-  if (!['active', 'inactive'].includes(status)) throw new HttpError(400, 'Invalid campus status.', 'INVALID_STATUS');
-  const row = await update('campuses', { id: `eq.${id}` }, { status });
-  await audit(context, `campus.${status}`, 'campus', id, {});
+  const found = await restSelect('campuses', { select: 'id,name,slug,country_code,timezone,status', id: `eq.${id}`, limit: 1 }, { admin: true });
+  if (!found.data?.[0]) throw new HttpError(404, 'Campus not found.', 'CAMPUS_NOT_FOUND');
+  const allowed = {};
+  if (body.status !== undefined) {
+    if (!['active', 'inactive'].includes(body.status)) throw new HttpError(400, 'Invalid campus status.', 'INVALID_STATUS');
+    allowed.status = body.status;
+  }
+  if (body.name !== undefined) { if (!String(body.name).trim()) throw new HttpError(400, 'Campus name is required.', 'CAMPUS_NAME_REQUIRED'); allowed.name = String(body.name).trim(); }
+  if (body.slug !== undefined) { if (!/^[a-z0-9-]+$/.test(String(body.slug).trim().toLowerCase())) throw new HttpError(400, 'Campus slug is invalid.', 'CAMPUS_SLUG_INVALID'); allowed.slug = String(body.slug).trim().toLowerCase(); }
+  if (body.countryCode !== undefined) { if (!/^[A-Z]{2}$/.test(String(body.countryCode).trim().toUpperCase())) throw new HttpError(400, 'Country code must contain two uppercase letters.', 'COUNTRY_CODE_INVALID'); allowed.country_code = String(body.countryCode).trim().toUpperCase(); }
+  if (body.timezone !== undefined) allowed.timezone = String(body.timezone).trim() || 'Asia/Kolkata';
+  if (!Object.keys(allowed).length) throw new HttpError(400, 'No campus changes supplied.', 'CAMPUS_UPDATE_EMPTY');
+  const row = await update('campuses', { id: `eq.${id}` }, allowed);
+  await audit(context, `campus.updated`, 'campus', id, allowed);
   return row;
+}
+
+export async function deleteCampus(context, id) {
+  requireRole(context, ['super_admin']);
+  const found = await restSelect('campuses', { select: 'id,name,status', id: `eq.${id}`, limit: 1 }, { admin: true });
+  const campus = found.data?.[0];
+  if (!campus) throw new HttpError(404, 'Campus not found.', 'CAMPUS_NOT_FOUND');
+  if (campus.status === 'active') throw new HttpError(409, 'Deactivate the campus before deleting it.', 'CAMPUS_MUST_BE_INACTIVE');
+  try {
+    const row = await remove('campuses', { id: `eq.${id}` });
+    await audit(context, 'campus.deleted', 'campus', id, { name: campus.name });
+    return row;
+  } catch (error) {
+    if (error instanceof HttpError && error.status >= 400 && error.status < 500) throw new HttpError(409, 'Campus cannot be deleted while records still reference it.', 'CAMPUS_DELETE_BLOCKED');
+    throw error;
+  }
 }
 
 export async function listNotifications(context, searchParams) {

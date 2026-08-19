@@ -71,7 +71,10 @@ async function route(request, pathname, searchParams) {
   if (pathname === '/v1/campuses' && method === 'GET') return { status: 200, payload: await repo.listCampuses(context, searchParams) };
   if (pathname === '/v1/campuses' && method === 'POST') return { status: 201, payload: await repo.createCampus(context, await bodyOf(request)) };
   const campusStatusId = idFrom(pathname, /^\/v1\/campuses\/([^/]+)\/status$/);
-  if (campusStatusId && method === 'PATCH') return { status: 200, payload: await repo.updateCampus(context, campusStatusId, (await bodyOf(request)).status) };
+  if (campusStatusId && method === 'PATCH') return { status: 200, payload: await repo.updateCampus(context, campusStatusId, await bodyOf(request)) };
+  const campusId = idFrom(pathname, /^\/v1\/campuses\/([^/]+)$/);
+  if (campusId && method === 'PATCH') return { status: 200, payload: await repo.updateCampus(context, campusId, await bodyOf(request)) };
+  if (campusId && method === 'DELETE') return { status: 200, payload: await repo.deleteCampus(context, campusId) };
   if (pathname === '/v1/notifications' && method === 'GET') return { status: 200, payload: await repo.listNotifications(context, searchParams) };
   if (pathname === '/v1/notifications/read-all' && method === 'POST') return { status: 200, payload: await repo.markAllNotifications(context) };
   const notificationId = idFrom(pathname, /^\/v1\/notifications\/([^/]+)\/read$/);
