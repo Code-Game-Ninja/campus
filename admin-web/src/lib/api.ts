@@ -68,6 +68,7 @@ export function tableEndpoint(section: string) {
   if (section === 'Event Managers' || section === 'Staff & Roles') return '/v1/staff';
   if (section === 'Campuses') return '/v1/campuses';
   if (section === 'Users') return '/v1/users';
+  if (section === 'Campus Change Requests') return '/v1/account-requests';
   if (section === 'Audit Log') return '/v1/audit';
   return null;
 }

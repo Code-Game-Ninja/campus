@@ -1,18 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Field } from '@/components/ui';
-import { sendOtp } from '@/lib/auth';
+import { getRememberedAccount, sendOtp } from '@/lib/auth';
 
 export default function Welcome() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [remembered, setRemembered] = useState<{ email: string } | null>(null);
+
+  useEffect(() => { void getRememberedAccount().then((account) => { setRemembered(account); if (account?.email) setEmail(account.email); }); }, []);
 
   const submit = async () => {
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       setError('Enter a valid email address');
+      return;
+    }
+    if (remembered && email.trim().toLowerCase() !== remembered.email) {
+      setError(`This phone is linked to ${remembered.email}. Sign in with that account, or ask an admin to approve an account change.`);
       return;
     }
     setError('');
@@ -32,7 +39,8 @@ export default function Welcome() {
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 28 }}>{['people', 'calendar', 'chatbubbles'].map((icon, index) => <View key={icon} style={{ flex: 1, height: 76, borderRadius: 18, backgroundColor: ['#FFFFFFAA', '#FFF8EAAA', '#F4EDFFAA'][index], alignItems: 'center', justifyContent: 'center' }}><Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={25} color="#344054" /></View>)}</View>
     </View>
     <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, padding: 18, gap: 14 }}>
-      <Field label="Email address" placeholder="you@example.com" keyboardType="email-address" value={email} onChangeText={setEmail} error={error} />
+      {remembered ? <Text style={{ color: '#344054', fontSize: 13, lineHeight: 19 }}>Last login on this phone: <Text style={{ fontWeight: '800' }}>{remembered.email}</Text></Text> : null}
+      <Field label="Email address" placeholder={remembered?.email || 'you@example.com'} keyboardType="email-address" value={email} onChangeText={setEmail} error={error} />
       <Button label="Send verification code" icon="arrow-forward" onPress={submit} loading={submitting} />
       <Text style={{ color: '#667085', fontSize: 11, lineHeight: 16, textAlign: 'center' }}>A one-time code is sent through the configured Supabase Auth project.</Text>
     </View>

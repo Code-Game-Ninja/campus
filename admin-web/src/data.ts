@@ -22,7 +22,7 @@ export const navByRole: Record<Role, NavItem[]> = {
   campus_admin: [
     { label: 'Overview', icon: LayoutDashboard }, { label: 'Events', icon: CalendarDays },
   { label: 'Posts', icon: FileText, count: 8 }, { label: 'Moderation', icon: ShieldCheck, count: 5 },
-    { label: 'Users', icon: UserRoundSearch },
+    { label: 'Users', icon: UserRoundSearch }, { label: 'Campus Change Requests', icon: ClipboardCheck },
     { label: 'Event Managers', icon: UserCog }, { label: 'Notifications', icon: BellRing },
     { label: 'Campus Settings', icon: Settings },
   ],
@@ -32,7 +32,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: 'Notifications', icon: Megaphone },
   ],
   super_admin: [
-    { label: 'Overview', icon: LayoutDashboard }, { label: 'Campuses', icon: Building2 }, { label: 'Users', icon: UserRoundSearch },
+    { label: 'Overview', icon: LayoutDashboard }, { label: 'Campuses', icon: Building2 }, { label: 'Users', icon: UserRoundSearch }, { label: 'Campus Change Requests', icon: ClipboardCheck },
     { label: 'Staff & Roles', icon: UsersRound }, { label: 'All Content', icon: FileText, count: 18 },
     { label: 'Moderation', icon: ShieldCheck, count: 12 }, { label: 'Audit Log', icon: Activity },
     { label: 'Platform Health', icon: HeartPulse }, { label: 'Platform Settings', icon: Gauge },

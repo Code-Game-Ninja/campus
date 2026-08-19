@@ -6,6 +6,7 @@ import { SupabaseHttpError, supabaseRequest } from './supabase-http';
 import type { OnboardingRoute } from '@/store/useAppStore';
 
 const SESSION_KEY = 'campussphere.supabase.session';
+const REMEMBERED_ACCOUNT_KEY = 'campussphere.remembered-account';
 
 export interface AuthSession {
   access_token: string;
@@ -42,6 +43,21 @@ async function load(): Promise<AuthSession | null> {
   }
 }
 
+export async function getRememberedAccount(): Promise<{ email: string; userId?: string } | null> {
+  const raw = Platform.OS === 'web'
+    ? (typeof localStorage === 'undefined' ? null : localStorage.getItem(REMEMBERED_ACCOUNT_KEY))
+    : await SecureStore.getItemAsync(REMEMBERED_ACCOUNT_KEY);
+  if (!raw) return null;
+  try { const value = JSON.parse(raw); return value?.email ? { email: String(value.email), userId: value.userId ? String(value.userId) : undefined } : null; } catch { return null; }
+}
+
+async function rememberAccount(session: AuthSession, email = session.user?.email) {
+  if (!email) return;
+  const value = JSON.stringify({ email: email.trim().toLowerCase(), userId: session.user?.id });
+  if (Platform.OS === 'web') { if (typeof localStorage !== 'undefined') localStorage.setItem(REMEMBERED_ACCOUNT_KEY, value); return; }
+  await SecureStore.setItemAsync(REMEMBERED_ACCOUNT_KEY, value);
+}
+
 function normalizeSession(session: AuthSession): AuthSession {
   if (!session.expires_at && session.expires_in) {
     session.expires_at = Math.floor(Date.now() / 1000) + session.expires_in;
@@ -63,7 +79,7 @@ export async function verifyOtp(email: string, token: string): Promise<AuthSessi
   }));
   if (!session.access_token || !session.refresh_token) throw new Error('Supabase did not return a valid session.');
   await save(session);
-  try { await claimDeviceForSession(session); } catch (error) { await save(null); throw error; }
+  try { await claimDeviceForSession(session); await rememberAccount(session, email); } catch (error) { await save(null); throw error; }
   return session;
 }
 
@@ -74,7 +90,7 @@ async function refreshSession(session: AuthSession): Promise<AuthSession | null>
       body: { refresh_token: session.refresh_token },
     }));
     await save(refreshed);
-    try { await claimDeviceForSession(refreshed); } catch (error) { await save(null); throw error; }
+    try { await claimDeviceForSession(refreshed); await rememberAccount(refreshed); } catch (error) { await save(null); throw error; }
     return refreshed;
   } catch (error) {
     if (error instanceof SupabaseHttpError && [400, 401, 403].includes(error.status)) {
@@ -94,7 +110,7 @@ export async function restoreSession(forceRefresh = false): Promise<AuthSession 
   const expiresSoon = !existing.expires_at || existing.expires_at <= Math.floor(Date.now() / 1000) + 60;
   if (forceRefresh || expiresSoon) return refreshSession(existing);
   setAccessToken(existing.access_token);
-  try { await claimDeviceForSession(existing); } catch (error) { await save(null); throw error; }
+  try { await claimDeviceForSession(existing); await rememberAccount(existing); } catch (error) { await save(null); throw error; }
   return existing;
 }
 

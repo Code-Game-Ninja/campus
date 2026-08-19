@@ -5,7 +5,7 @@ import { goBackOrReplace } from '@/lib/navigation';
 import { Button, Field, IconButton, Screen } from '@/components/ui';
 import { useAppStore } from '@/store/useAppStore';
 import { usePalette } from '@/theme/usePalette';
-import { sendOtp, verifyOtp } from '@/lib/auth';
+import { resolveOnboardingRoute, sendOtp, verifyOtp } from '@/lib/auth';
 
 export default function Verify() {
   const p = usePalette();
@@ -31,8 +31,9 @@ export default function Verify() {
     setLoading(true);
     try {
       await verifyOtp(String(email ?? ''), code);
-      signIn('university');
-      router.replace('/(onboarding)/university');
+      const route = await resolveOnboardingRoute();
+      signIn(route || 'university');
+      router.replace(route === 'complete' ? '/(tabs)/home' : route === 'profile' ? '/(onboarding)/profile-setup' : '/(onboarding)/university');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Verification code invalid or expired.');
     } finally {

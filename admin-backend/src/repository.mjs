@@ -404,6 +404,42 @@ export async function listUsers(context, searchParams) {
   };
 }
 
+export async function listAccountRequests(context, searchParams) {
+  requireRole(context, ['campus_admin', 'super_admin']);
+  const { page, limit, offset } = pageParams(searchParams);
+  const scope = {};
+  if (context.role === 'campus_admin') {
+    requireContextCampus(context);
+    const campusUsers = await restSelect('users', { select: 'id', campus_id: `eq.${context.campusId}`, limit: 10000 }, { admin: true });
+    const userIds = (campusUsers.data || []).map((row) => row.id);
+    scope.or = userIds.length ? `(target_campus_id.eq.${context.campusId},user_id.${inFilter(userIds)})` : `(target_campus_id.eq.${context.campusId})`;
+  }
+  const result = await restSelect('account_requests', { select: 'id,user_id,request_type,status,target_campus_id,reason,decision_reason,decided_by,requested_at,updated_at,completed_at', request_type: 'eq.campus_change', ...scope, ...statusFilter(searchParams), order: 'requested_at.desc', limit, offset }, { admin: true, count: true });
+  const rows = result.data || [];
+  const ids = [...new Set(rows.map((row) => row.user_id))];
+  const targetIds = [...new Set(rows.map((row) => row.target_campus_id).filter(Boolean))];
+  const [users, targets] = await Promise.all([
+    ids.length ? restSelect('users', { select: 'id,email,campus_id', id: inFilter(ids) }, { admin: true }) : { data: [] },
+    targetIds.length ? restSelect('campuses', { select: 'id,name', id: inFilter(targetIds) }, { admin: true }) : { data: [] },
+  ]);
+  const userMap = new Map((users.data || []).map((row) => [row.id, row]));
+  const currentIds = [...new Set((users.data || []).map((row) => row.campus_id).filter(Boolean))];
+  const current = currentIds.length ? await restSelect('campuses', { select: 'id,name', id: inFilter(currentIds) }, { admin: true }) : { data: [] };
+  const campusMap = new Map([...(targets.data || []), ...(current.data || [])].map((row) => [row.id, row.name]));
+  const records = rows.map((row) => ({ ...row, requester: userMap.get(row.user_id)?.email || row.user_id, currentCampus: campusMap.get(userMap.get(row.user_id)?.campus_id) || 'Unassigned', targetCampus: campusMap.get(row.target_campus_id) || 'Unavailable' }));
+  return { records, total: result.count ?? records.length, page, limit, columns: ['Requester', 'Current campus', 'Requested campus', 'Reason', 'Status', 'Requested'], rows: records.map((row) => [row.requester, row.currentCampus, row.targetCampus, row.reason || 'No reason provided', row.status, new Date(row.requested_at).toLocaleString('en-IN')]) };
+}
+
+export async function decideAccountRequest(context, id, body) {
+  requireRole(context, ['campus_admin', 'super_admin']);
+  const decision = String(body.decision || '').trim();
+  const reason = String(body.reason || '').trim();
+  if (!['approve', 'reject'].includes(decision)) throw new HttpError(400, 'Choose approve or reject.', 'INVALID_REQUEST_DECISION');
+  if (!reason) throw new HttpError(400, 'A decision reason is required.', 'REASON_REQUIRED');
+  const result = await restRpc('admin_decide_account_request_as', { p_actor_id: context.user.id, p_request_id: id, p_decision: decision, p_reason: reason }, { admin: true });
+  return result.data;
+}
+
 export async function getUserSecurity(context, id) {
   const user = await scopedUser(context, id);
   const [profiles, campuses, devices, enforcements, loginEvents, reports, filedReports] = await Promise.all([
@@ -461,7 +497,7 @@ export async function claimMobileDevice(identity, body, ipAddress) {
     p_platform: platform,
     p_device_fingerprint_hash: String(body.deviceFingerprint),
     p_device_public_key: body.devicePublicKey || null,
-    p_installation_id_hash: body.installationId || null,
+    p_installation_id_hash: body.installationIdHash || body.installationId || null,
     p_device_label: body.deviceLabel || null,
     p_integrity_verdict: body.integrityVerdict || 'not_checked',
     p_app_version: body.appVersion || null,

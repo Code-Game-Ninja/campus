@@ -86,6 +86,9 @@ async function route(request, pathname, searchParams) {
   if (campusId && method === 'PATCH') return { status: 200, payload: await repo.updateCampus(context, campusId, await bodyOf(request)) };
   if (campusId && method === 'DELETE') return { status: 200, payload: await repo.deleteCampus(context, campusId) };
   if (pathname === '/v1/users' && method === 'GET') return { status: 200, payload: await repo.listUsers(context, searchParams) };
+  if (pathname === '/v1/account-requests' && method === 'GET') return { status: 200, payload: await repo.listAccountRequests(context, searchParams) };
+  const accountRequestId = idFrom(pathname, /^\/v1\/account-requests\/([^/]+)$/);
+  if (accountRequestId && method === 'PATCH') return { status: 200, payload: await repo.decideAccountRequest(context, accountRequestId, await bodyOf(request)) };
   const userId = idFrom(pathname, /^\/v1\/users\/([^/]+)$/);
   if (userId && method === 'GET') return { status: 200, payload: await repo.getUserSecurity(context, userId) };
   if (userId && method === 'PATCH') return { status: 200, payload: await repo.enforceUser(context, userId, await bodyOf(request)) };

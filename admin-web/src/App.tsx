@@ -33,6 +33,7 @@ const pageCopy: Record<string, { title: string; description: string }> = {
   'All Content': { title: 'All content', description: 'Search platform content across the global operational scope.' },
   Moderation: { title: 'Moderation queue', description: 'Resolve reports with reason, scope, and audit context.' },
   Users: { title: 'App users', description: 'Review account status, verified contact details, device bindings, and reports within your permission scope.' },
+  'Campus Change Requests': { title: 'Campus change requests', description: 'Review and decide campus changes through the protected admin API.' },
   Notifications: { title: 'Notifications', description: 'Review persistent operational and workflow updates.' },
   'Event Managers': { title: 'Event managers', description: 'Invite and manage event assignments for this campus.' },
   'Staff & Roles': { title: 'Staff and roles', description: 'Manage scoped assignments with an explicit policy boundary.' },
@@ -161,7 +162,8 @@ export function App() {
   function rowAction(index: number) {
     const record = table?.records[index] as Record<string, string> | undefined;
     if (!record?.id) return;
-    if (!['Posts', 'All Content', 'Moderation', 'Events', 'Venues & Media', 'Event Managers', 'Staff & Roles', 'Campuses', 'Users'].includes(section)) { notify('This record is read-only.'); return; }
+    if (section === 'Campus Change Requests' && !['pending', 'processing'].includes(String(record.status))) { notify('This request already has a final decision.'); return; }
+    if (!['Posts', 'All Content', 'Moderation', 'Events', 'Venues & Media', 'Event Managers', 'Staff & Roles', 'Campuses', 'Users', 'Campus Change Requests'].includes(section)) { notify('This record is read-only.'); return; }
     if (section === 'Users') {
       void apiGet<any>(`/v1/users/${record.id}`).then((security) => setRowActionRequest({ section, record: { ...record, security } })).catch((error) => notify(error instanceof Error ? error.message : 'User details could not load.'));
       return;
@@ -184,7 +186,7 @@ export function App() {
       } else if (targetSection === 'Users') {
         if (values.action === 'revoke_sessions') await apiPost(`/v1/users/${record.id}/sessions`, {});
         else await apiPatch(`/v1/users/${record.id}`, { action: values.action, reason: values.reason, deviceId: values.deviceId || null });
-      }
+      } else if (targetSection === 'Campus Change Requests') await apiPatch(`/v1/account-requests/${record.id}`, { decision: values.decision, reason: values.reason });
       setRowActionRequest(null);
       notify('Change saved and recorded in the audit log.');
       await Promise.all([refreshSection(targetSection), loadDashboard(), targetSection === 'Campuses' ? loadCampusOptions() : Promise.resolve()]);
@@ -260,16 +262,18 @@ function RowActionModal({ request, role, onClose, onSubmit }: { request: Exclude
   const [busy, setBusy] = useState(false);
   const [campusAction, setCampusAction] = useState('edit');
   const [accountAction, setAccountAction] = useState('suspend');
-  const title = targetSection === 'Moderation' ? 'Review report' : targetSection === 'Campuses' ? `Manage ${String(record.name || 'campus')}` : 'Record actions';
+  const title = targetSection === 'Moderation' ? 'Review report' : targetSection === 'Campuses' ? `Manage ${String(record.name || 'campus')}` : targetSection === 'Campus Change Requests' ? 'Decide campus change request' : 'Record actions';
   async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setBusy(true); try { await onSubmit(Object.fromEntries(new FormData(event.currentTarget).entries()) as Record<string, string>); } finally { setBusy(false); } }
   const isModeration = targetSection === 'Moderation';
   const isCampus = targetSection === 'Campuses';
   const isStaff = targetSection === 'Event Managers' || targetSection === 'Staff & Roles';
   const isUser = targetSection === 'Users';
+  const isCampusRequest = targetSection === 'Campus Change Requests';
   const security = isUser ? (record.security as any)?.user && record.security : null;
   const superAdmin = role === 'super_admin';
   return <Modal title={title} description={isModeration ? `Reported ${String(record.target_type || 'content')}: ${String(record.target || '')}. ${String(record.details || 'No additional report details were provided.')}` : 'Choose an action to apply through the protected admin API.'} onClose={onClose}><form onSubmit={submit}><div className="form-fields">
     {isModeration && <><label><span>Action</span><select name="action" defaultValue="dismiss"><option value="dismiss">Dismiss report</option><option value="hide">Hide content</option><option value="remove">Remove content</option><option value="warn">Warn user</option><option value="escalate">Escalate for review</option><option value="restore">Restore content</option></select></label><label className="field-wide"><span>Audit reason</span><textarea name="reason" rows={4} placeholder="Explain the moderation decision" /></label></>}
+    {isCampusRequest && <><div className="modal-summary"><strong>{String(record.requester || 'User')}</strong><span>Current campus: {String(record.currentCampus || 'Unknown')}</span><span>Requested campus: {String(record.targetCampus || 'Unknown')}</span><span>Reason: {String(record.reason || 'No reason provided')}</span><span>Status: {String(record.status || 'pending')}</span></div><label><span>Decision</span><select name="decision" defaultValue="approve"><option value="approve">Approve campus change</option><option value="reject">Reject request</option></select></label><label className="field-wide"><span>Decision reason</span><textarea name="reason" rows={4} required placeholder="Explain this decision" /></label></>}
     {(targetSection === 'Posts' || targetSection === 'All Content') && <label><span>Post status</span><select name="status" defaultValue={String(record.status || 'published')}><option value="published">Published</option><option value="hidden">Hidden</option><option value="removed">Removed</option><option value="deleted">Deleted</option></select></label>}
     {(targetSection === 'Events' || targetSection === 'Venues & Media') && <label><span>Event status</span><select name="status" defaultValue={String(record.status || 'draft')}><option value="draft">Draft</option><option value="published">Published</option><option value="cancelled">Cancelled</option><option value="completed">Completed</option></select></label>}
     {isStaff && <p className="modal-warning">This revokes the selected staff assignment and records the action in the audit log.</p>}
