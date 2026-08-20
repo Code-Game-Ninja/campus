@@ -219,7 +219,7 @@ export function App() {
     if (section === 'Help') return <HelpView />;
     if (section === 'Account Settings') return <AccountSettingsView role={role} meta={meta} onRefresh={async () => { await loadMe(); notify('Identity and permission scope refreshed from the live API.'); }} />;
     if (section === 'Campus Settings' || section === 'Platform Settings') return <SettingsView scope={meta.scope} settings={settings} onSave={saveWorkspaceSettings} onAction={notify} />;
-    if (table) return <DataTable title={copy.title} description={copy.description} scope={meta.scope} columns={table.columns} rows={table.rows} primaryAction={primary?.label} onPrimary={primary ? () => setModal(primary.kind) : undefined} onRowAction={rowAction} onAction={notify} filterValue={tableFilter} onFilterChange={applyTableFilter} />;
+    if (table) return <DataTable title={copy.title} description={copy.description} scope={meta.scope} columns={table.columns} rows={table.rows} primaryAction={primary?.label} onPrimary={primary ? () => setModal(primary.kind) : undefined} onRowAction={rowAction} onAction={notify} filterValue={tableFilter} onFilterChange={applyTableFilter} showAllRows={section === 'Campuses'} />;
     return <StateView state="empty" onReset={() => void refreshSection(section)} />;
   }
 

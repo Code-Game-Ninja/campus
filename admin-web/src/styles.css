@@ -309,3 +309,39 @@ td { font-size: 12px; line-height: 1.45; }
 .workspace::-webkit-scrollbar-track { background: transparent; }
 .workspace::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: rgba(217,255,53,.28); background-clip: padding-box; }
 .workspace::-webkit-scrollbar-thumb:hover { background: rgba(217,255,53,.46); background-clip: padding-box; }
+
+/* Campus directory keeps its compact controls/footer visible while the full
+   directory scrolls inside the table surface. Other data tables retain their
+   normal five-row pagination and layout. */
+@media (min-width: 581px) {
+  .workspace-list .data-page-show-all .table-panel {
+    height: clamp(360px, calc(100vh - 350px), 620px);
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .workspace-list .data-page-show-all .table-wrap {
+    min-height: 0;
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(217,255,53,.28) transparent;
+  }
+
+  .workspace-list .data-page-show-all th {
+    position: sticky;
+    z-index: 1;
+    top: 0;
+    background: var(--surface-1);
+  }
+}
+
+@media (max-width: 580px) {
+  .workspace-list .data-page-show-all .table-wrap {
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+}

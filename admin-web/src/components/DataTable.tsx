@@ -20,7 +20,7 @@ function pageItems(page: number, pageCount: number): Array<number | 'ellipsis'> 
 
 const STATUS_FILTERS = ['all', 'active', 'pending', 'published', 'draft', 'hidden', 'removed', 'deleted', 'reviewing', 'open', 'resolved', 'registered', 'waitlisted', 'attended', 'revoked', 'cancelled', 'completed', 'inactive'];
 
-export function DataTable({ title, description, scope, columns, rows, primaryAction, onPrimary, onAction, onRowAction, filterValue = 'all', onFilterChange }: { title: string; description: string; scope: string; columns: string[]; rows: string[][]; primaryAction?: string; onPrimary?: () => void; onAction: (message: string) => void; onRowAction?: (index: number) => void; filterValue?: string; onFilterChange?: (value: string) => void | Promise<void> }) {
+export function DataTable({ title, description, scope, columns, rows, primaryAction, onPrimary, onAction, onRowAction, filterValue = 'all', onFilterChange, showAllRows = false }: { title: string; description: string; scope: string; columns: string[]; rows: string[][]; primaryAction?: string; onPrimary?: () => void; onAction: (message: string) => void; onRowAction?: (index: number) => void; filterValue?: string; onFilterChange?: (value: string) => void | Promise<void>; showAllRows?: boolean }) {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -29,17 +29,18 @@ export function DataTable({ title, description, scope, columns, rows, primaryAct
   const statusColumn = columns.findIndex((column) => column.toLowerCase() === 'status');
   const filtered = useMemo(() => rows.filter((row) => row.join(' ').toLowerCase().includes(query.toLowerCase()) && (filterValue === 'all' || statusColumn < 0 || row[statusColumn]?.toLowerCase() === filterValue)), [filterValue, query, rows, statusColumn]);
   const visibleColumns = useMemo(() => columns.map((column, index) => ({ column, index })).filter(({ column }) => !hiddenColumns.includes(column)), [columns, hiddenColumns]);
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageSize = showAllRows ? Math.max(filtered.length, 1) : PAGE_SIZE;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount);
-  const visibleRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-  const firstRecord = filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
-  const lastRecord = Math.min(safePage * PAGE_SIZE, filtered.length);
+  const visibleRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const firstRecord = filtered.length === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const lastRecord = Math.min(safePage * pageSize, filtered.length);
 
   useEffect(() => {
     setPage(1);
   }, [query]);
 
-  return <section className="data-page page-enter">
+  return <section className={`data-page page-enter ${showAllRows ? 'data-page-show-all' : ''}`}>
     <div className="panel table-panel">
       <div className="table-toolbar">
         <label className="table-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${title.toLowerCase()}`} aria-label={`Search ${title}`} /></label>
@@ -53,17 +54,17 @@ export function DataTable({ title, description, scope, columns, rows, primaryAct
         <table>
           <caption className="sr-only">{title}. {description} Scope: {scope}.</caption>
           <thead><tr>{visibleColumns.map(({ column }) => <th key={column}>{column}</th>)}<th><span className="sr-only">Actions</span></th></tr></thead>
-          <tbody>{visibleRows.map((row, index) => { const recordIndex = rows.indexOf(row); return <tr key={`${row[0]}-${(safePage - 1) * PAGE_SIZE + index}`}>{visibleColumns.map(({ index: cellIndex }) => { const cell = row[cellIndex]; return <td key={`${cell}-${cellIndex}`}>{cellIndex === statusColumn ? <span className={`status-pill ${statusTone(cell)}`}><i />{cell}</span> : cell}</td>; })}<td><button className="row-button" onClick={() => onRowAction ? onRowAction(recordIndex) : onAction(`Opened ${row[0]}.`)} aria-label={`Open actions for ${row[0]}`}><MoreHorizontal size={17} /></button></td></tr>; })}</tbody>
+          <tbody>{visibleRows.map((row, index) => { const recordIndex = rows.indexOf(row); return <tr key={`${row[0]}-${(safePage - 1) * pageSize + index}`}>{visibleColumns.map(({ index: cellIndex }) => { const cell = row[cellIndex]; return <td key={`${cell}-${cellIndex}`}>{cellIndex === statusColumn ? <span className={`status-pill ${statusTone(cell)}`}><i />{cell}</span> : cell}</td>; })}<td><button className="row-button" onClick={() => onRowAction ? onRowAction(recordIndex) : onAction(`Opened ${row[0]}.`)} aria-label={`Open actions for ${row[0]}`}><MoreHorizontal size={17} /></button></td></tr>; })}</tbody>
         </table>
         {filtered.length === 0 && <div className="table-empty"><Search size={22} /><strong>No matching results</strong><span>Try a shorter name, status, or owner.</span></div>}
       </div>
       <div className="table-footer">
         <span>{filtered.length === 0 ? 'No records' : `Showing ${firstRecord}-${lastRecord} of ${filtered.length} records`}</span>
-        <nav className="pagination" aria-label={`${title} pagination`}>
+        {!showAllRows && <nav className="pagination" aria-label={`${title} pagination`}>
           <button disabled={safePage === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button>
           {pageItems(safePage, pageCount).map((item, index) => item === 'ellipsis' ? <span className="pagination-ellipsis" key={`ellipsis-${index}`}>...</span> : <button key={item} className={safePage === item ? 'active' : ''} aria-current={safePage === item ? 'page' : undefined} onClick={() => setPage(item)}>{item}</button>)}
           <button disabled={safePage === pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))}>Next</button>
-        </nav>
+        </nav>}
       </div>
     </div>
   </section>;
