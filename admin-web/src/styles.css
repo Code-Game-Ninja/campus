@@ -310,6 +310,21 @@ td { font-size: 12px; line-height: 1.45; }
 .workspace::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: rgba(217,255,53,.28); background-clip: padding-box; }
 .workspace::-webkit-scrollbar-thumb:hover { background: rgba(217,255,53,.46); background-clip: padding-box; }
 
+.campus-detail-summary {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(255,255,255,.025);
+}
+
+.campus-detail-summary strong { color: var(--text); font-size: 14px; }
+.campus-detail-summary span { color: var(--muted); font-size: 11px; }
+.table-primary-link { padding: 0; color: var(--text); border: 0; background: transparent; font: inherit; font-weight: 600; text-align: left; }
+.table-primary-link:hover { color: var(--lime); text-decoration: underline; text-underline-offset: 3px; }
+
 /* Campus directory keeps its compact controls/footer visible while the full
    directory scrolls inside the table surface. Other data tables retain their
    normal five-row pagination and layout. */
