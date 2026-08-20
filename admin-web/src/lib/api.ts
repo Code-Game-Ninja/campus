@@ -55,7 +55,16 @@ async function fetchApi<T>(path: string, options: RequestInit = {}, retry = true
     }
     throw new ApiError('The network connection changed while loading data. Check your connection and retry.', 0, 'NETWORK_CHANGED');
   }
-  const payload = await parse(response);
+  let payload: any;
+  try {
+    payload = await parse(response);
+  } catch {
+    if (networkAttempt < NETWORK_RETRIES && (options.method || 'GET').toUpperCase() === 'GET') {
+      await wait(500 * (networkAttempt + 1));
+      return fetchApi<T>(path, options, retry, networkAttempt + 1);
+    }
+    throw new ApiError('The server connection closed while reading the response. Please retry.', 0, 'RESPONSE_INTERRUPTED');
+  }
   if ([502, 503, 504].includes(response.status) && networkAttempt < NETWORK_RETRIES) {
     await wait(500 * (networkAttempt + 1));
     return fetchApi<T>(path, options, retry, networkAttempt + 1);
