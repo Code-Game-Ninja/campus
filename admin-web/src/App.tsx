@@ -24,6 +24,26 @@ type RowActionRequest = { section: string; record: Record<string, unknown> } | n
 type HealthData = { status: string; latencyMs: number; checkedAt: string; services: Array<{ name: string; status: string }> };
 type CampusOption = { id: string; name: string; status: string };
 
+async function loadAllTablePages(endpoint: string, status = 'all') {
+  const limit = 100;
+  let page = 1;
+  let firstPage: TableData | null = null;
+  const records: TableData['records'] = [];
+  const rows: TableData['rows'] = [];
+
+  do {
+    const params = new URLSearchParams({ limit: String(limit), page: String(page), status });
+    const result = await apiGet<TableData>(`${endpoint}?${params.toString()}`);
+    firstPage ||= result;
+    records.push(...result.records);
+    rows.push(...result.rows);
+    if (!result.records.length || records.length >= result.total) break;
+    page += 1;
+  } while (true);
+
+  return { records, rows, total: firstPage?.total || records.length, columns: firstPage?.columns || [] } satisfies TableData;
+}
+
 const pageCopy: Record<string, { title: string; description: string }> = {
   Overview: { title: 'Overview', description: 'Live operating data for your active permission scope.' },
   Events: { title: 'Events', description: 'Manage lifecycle, capacity, venues, and attendee-facing details.' },
@@ -79,7 +99,7 @@ export function App() {
   async function loadDashboard() { setDashboard(await apiGet<DashboardData>('/v1/dashboard')); }
   async function loadCampusOptions() {
     if (role !== 'super_admin') return;
-    const result = await apiGet<TableData>('/v1/campuses?limit=100');
+    const result = await loadAllTablePages('/v1/campuses', 'active');
     setCampusOptions(result.records.filter((row) => row.status === 'active').map((row) => ({ id: String(row.id), name: String(row.name), status: String(row.status) })));
   }
 
@@ -96,7 +116,7 @@ export function App() {
         if (endpoint) {
           const params = new URLSearchParams({ limit: '100' });
           params.set('status', filter);
-          const result = await apiGet<TableData>(`${endpoint}?${params.toString()}`);
+          const result = target === 'Campuses' ? await loadAllTablePages(endpoint, filter) : await apiGet<TableData>(`${endpoint}?${params.toString()}`);
           setTable(result);
           if (!result.rows.length && filter === 'all') { setViewState('empty'); return true; }
         }
