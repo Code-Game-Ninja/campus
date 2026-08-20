@@ -33,13 +33,33 @@ async function parse(response: Response) {
   try { return JSON.parse(raw); } catch { return raw; }
 }
 
-async function fetchApi<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
+const NETWORK_RETRIES = 3;
+
+function wait(ms: number) { return new Promise((resolve) => window.setTimeout(resolve, ms)); }
+
+async function fetchApi<T>(path: string, options: RequestInit = {}, retry = true, networkAttempt = 0): Promise<T> {
   let session = storedSession();
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}), ...options.headers },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}), ...options.headers },
+    });
+  } catch {
+    // Render/browser connections can briefly reset during a cold start or
+    // network handoff. Retry idempotent requests before surfacing the error.
+    const method = (options.method || 'GET').toUpperCase();
+    if (method === 'GET' && networkAttempt < NETWORK_RETRIES) {
+      await wait(350 * (networkAttempt + 1));
+      return fetchApi<T>(path, options, retry, networkAttempt + 1);
+    }
+    throw new ApiError('The network connection changed while loading data. Check your connection and retry.', 0, 'NETWORK_CHANGED');
+  }
   const payload = await parse(response);
+  if ([502, 503, 504].includes(response.status) && networkAttempt < NETWORK_RETRIES) {
+    await wait(500 * (networkAttempt + 1));
+    return fetchApi<T>(path, options, retry, networkAttempt + 1);
+  }
   if (response.status === 401 && retry && session?.refresh_token) {
     try {
       const refreshed = await fetch(`${API_URL}/v1/auth/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: session.refresh_token }) });
