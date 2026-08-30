@@ -1,11 +1,26 @@
 {
   "expo": {
-    "name": "CampusSphere",
+    "name": "Cloud-Campus",
     "slug": "campus",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "campussphere",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/app-logo.png",
+    "splash": {
+      "image": "./assets/app-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0d0b"
+    },
+    "android": {
+      "package": "com.campus.app",
+      "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/app-logo.png",
+        "backgroundColor": "#0a0d0b"
+      }
+    },
     "newArchEnabled": true,
     "plugins": [
       "expo-router",
@@ -13,7 +28,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow CampusSphere to select photos for your posts."
+          "photosPermission": "Allow Cloud-Campus to select photos for your posts."
         }
       ],
       [
@@ -26,11 +41,6 @@
     "web": {
       "bundler": "metro",
       "output": "single"
-    },
-    "android": {
-      "package": "com.campus.app",
-      "edgeToEdgeEnabled": true,
-      "softwareKeyboardLayoutMode": "resize"
     },
     "ios": {
       "supportsTablet": true

@@ -1,6 +1,6 @@
 export function Logo({ compact = false }: { compact?: boolean }) {
   return <div className="brand">
-    <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
-    {!compact && <span><strong>CampusSphere</strong><small>Operations console</small></span>}
+    {!compact && <span><strong>Cloud-Campus</strong><small>Operations console</small></span>}
+    {compact && <strong>Cloud-Campus</strong>}
   </div>;
 }

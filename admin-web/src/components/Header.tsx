@@ -15,7 +15,7 @@ export function Header({ role, meta, onSearch, onAccountSettings, onNotification
   }, []);
   function submitSearch(event: FormEvent) { event.preventDefault(); onSearch(query); setQuery(''); }
   return <header className="topbar">
-    <div className="topbar-context"><span className="topbar-kicker">CAMPUSSPHERE / ADMIN</span><span className="topbar-divider">/</span><strong>{meta.label}</strong></div>
+    <div className="topbar-context"><span className="topbar-kicker">CLOUD-CAMPUS / ADMIN</span><span className="topbar-divider">/</span><strong>{meta.label}</strong></div>
     <div className="topbar-actions">
       <form className="global-search" onSubmit={submitSearch}><Search size={16} /><input ref={searchRef} aria-label="Search admin workspace" placeholder="Search workspace" value={query} onChange={(event) => setQuery(event.target.value)} /><kbd><Command size={11} />K</kbd></form>
       <button className="icon-button notification-button" aria-label="Open notifications" onClick={onNotifications}><Bell size={17} />{unread > 0 && <span className="notification-dot" />}</button>

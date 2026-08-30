@@ -4,7 +4,7 @@ export function HelpView() {
   const topics = [
     ['Using the workspace', 'Open an accessible section, search records, export loaded tables, and use row actions for mutations.', BookOpen],
     ['Permission boundaries', 'Every workspace is scoped by the server-resolved admin assignment and campus relationship.', ShieldCheck],
-    ['Need a hand?', 'Contact the CampusSphere operations team when an assignment or database workflow needs review.', LifeBuoy],
+    ['Need a hand?', 'Contact the Cloud-Campus operations team when an assignment or database workflow needs review.', LifeBuoy],
   ] as const;
 
   return <section className="help-page page-enter">
