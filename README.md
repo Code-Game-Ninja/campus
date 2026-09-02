@@ -1,5 +1,10 @@
 # CampusSphere
 
+[![GitHub Release](https://img.shields.io/github/v/release/Code-Game-Ninja/campus?label=Latest%20Release&color=success)](https://github.com/Code-Game-Ninja/campus/releases/latest)
+[![Download Android APK](https://img.shields.io/badge/Download-Android%20APK-brightgreen?logo=android)](https://github.com/Code-Game-Ninja/campus/releases/latest)
+
+> 📱 **Download Android App**: Get the latest prebuilt installable APK directly from [**GitHub Releases**](https://github.com/Code-Game-Ninja/campus/releases/latest).
+
 CampusSphere uses Supabase Cloud for its shared database, authentication, and storage. The admin product is split into a protected Node.js API and a static React dashboard:
 
 ```text

@@ -8,6 +8,8 @@ dist/
 .expo/
 coverage/
 tmp/
+*.apk
+*.aab
 
 # Local configuration and secrets
 .env

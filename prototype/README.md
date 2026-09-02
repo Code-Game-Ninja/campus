@@ -73,6 +73,24 @@ eas build --platform android --profile preview
 
 The `preview` profile produces an installable APK. Download it from the EAS build page and install it on a test device. The build requires a committed working tree because `eas.json` has `requireCommit: true`.
 
+## Publish To GitHub Releases
+
+To publish a new version so users can download the APK directly from GitHub:
+
+1. Download the generated APK from the EAS build URL:
+   ```powershell
+   curl.exe -L "YOUR_EAS_ARTIFACT_URL.apk" -o "CampusSphere-vX.Y.Z.apk"
+   ```
+
+2. Create the release with the attached APK:
+   ```powershell
+   gh release create v1.0.0 CampusSphere-v1.0.0.apk --title "CampusSphere Mobile App v1.0.0" --notes "Release notes..."
+   ```
+
+Users can download the latest installable APK anytime from:
+`https://github.com/Code-Game-Ninja/campus/releases/latest`
+
+
 ## Build For Google Play
 
 Use the production profile to create an Android App Bundle:
