@@ -121,7 +121,9 @@ export const useAppStore = create<AppState>()(persist((set) => ({
 }), {
     name: 'campussphere-main-app-ui',
   storage: createJSONStorage(() => secureStoreStorage),
-  partialize: ({ hydrated: _hydrated, sessionResolved: _sessionResolved, sessionError: _sessionError, authenticated: _authenticated, toast: _toast, ...state }) => state,
+  // Session and onboarding state is derived from Supabase on every launch, so
+  // persisting it would only let a stale 'complete' route win over the server.
+  partialize: ({ hydrated: _hydrated, sessionResolved: _sessionResolved, sessionError: _sessionError, authenticated: _authenticated, onboardingRoute: _onboardingRoute, toast: _toast, ...state }) => state,
   onRehydrateStorage: () => (state) => {
     if (state) state.setHydrated(true);
     else useAppStore.setState({ hydrated: true });

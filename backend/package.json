@@ -10,6 +10,7 @@
     "check:contract": "node scripts/check-contract.mjs",
     "check:mvp": "node scripts/check-mvp-coverage.mjs",
     "get:test-token": "node scripts/get-test-token.mjs",
+    "diagnose:onboarding": "node scripts/diagnose-onboarding-rls.mjs",
     "sync:universities": "node scripts/sync-indian-institutions.mjs",
     "check:university-sync": "node scripts/sync-indian-institutions.mjs --input=scripts/fixtures/open-indian-institutions-sample.json --dry-run",
     "process:reminders": "node scripts/process-reminders.mjs",

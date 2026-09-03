@@ -114,14 +114,28 @@ export async function restoreSession(forceRefresh = false): Promise<AuthSession 
   return existing;
 }
 
+async function resolveSessionUserId(session: AuthSession): Promise<string | null> {
+  if (session.user?.id) return session.user.id;
+  // A session restored from storage can predate the field, so ask Supabase Auth
+  // rather than falling back to an unfiltered identity lookup.
+  const user = await supabaseRequest<{ id?: string }>('auth', 'user', { accessToken: session.access_token });
+  return user?.id ?? null;
+}
+
 export async function resolveOnboardingRoute(): Promise<OnboardingRoute | null> {
   const session = await restoreSession();
   if (!session) return null;
+  const userId = await resolveSessionUserId(session);
+  if (!userId) return null;
+  // Always filter by the signed-in user. An unfiltered `limit=1` read returns
+  // whichever row the API decides to hand back, so any gap in the users RLS
+  // policy would let a brand-new account inherit a stranger's onboarding state
+  // and skip campus and profile setup.
   const rows = await supabaseRequest<Array<{
     id: string;
     campus_id: string | null;
     onboarding_completed_at: string | null;
-  }>>('rest', 'users?select=id,campus_id,onboarding_completed_at&limit=1', { accessToken: session.access_token });
+  }>>('rest', `users?select=id,campus_id,onboarding_completed_at&id=eq.${encodeURIComponent(userId)}&limit=1`, { accessToken: session.access_token });
   const identity = rows[0];
   if (!identity?.campus_id) return 'university';
   if (identity.onboarding_completed_at) return 'complete';
