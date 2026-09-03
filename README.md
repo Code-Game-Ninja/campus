@@ -23,6 +23,7 @@ admin-web/       React and Vite admin dashboard
 admin-backend/   Node.js admin API and role enforcement
 backend/         Supabase migrations, checks, and background jobs
 prototype/       Expo mobile application
+download-portal/ Standalone APK download portal and community issue/suggestion hub
 ```
 
 The browser never receives the Supabase service-role key. All privileged database access goes through `admin-backend`.
